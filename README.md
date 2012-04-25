@@ -23,3 +23,14 @@ for Blackboard Connect files and results.
 Then: 
 
     lua bbc.lua
+
+Todo
+====
+
+Update existing work in send_status.lua to send results of upload.
+send_status.lua requires the following lua libraries:
+
+- socket.smtp
+- mime
+- ltn12
+- lfs
