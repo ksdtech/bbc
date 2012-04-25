@@ -1,0 +1,20 @@
+-- app_config.lua.sample
+-- sample file; please use real values and save as app_config.lua
+
+-- global variable setup
+verboseFlag = true
+sourceDir = '/path-to-exported-powerschool-autosend-files/'
+uploadDir = '/path-to-working-upload-directory/'
+
+-- Blackboard Connect Username and Password
+strUserName = "bbc-user"
+strUserPass = "bbc-password"
+
+-- Blackboard Connect Contacts Importer URL
+destURL = "https://www.blackboardconnected.com/consult-blackboard-connect-for-url"
+
+-- Mail info to send updates
+mailfrom = "pzingg@example.com"
+mailto = "pzingg@example.com"
+smtphost = "host.name.or.ip"
+smtpport = 25
