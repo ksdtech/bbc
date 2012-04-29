@@ -4,10 +4,12 @@
 require "table_print"
 require "app_config"
 
--- libcurl stuff
-require "cURL"
-libcurlLoaded = true
+-- used with curl command
 cookieFile = "cookies.txt"
+headerFile = 'headers.txt'
+libcurlFile = 'curl.c'
+traceFile = 'trace.txt'
+libcurlLoaded = false
 
 -- headers for staff file
 -- 6 groups
@@ -22,6 +24,18 @@ studentHeaders = { 'ReferenceCode', 'FirstName', 'LastName',
   'HomePhone', 'WorkPhone', 'MobilePhone',
   'HomePhoneAlt', 'WorkPhoneAlt', 'MobilePhoneAlt',
   'EmailAddress', 'EmailAddressAlt', 'Institution', 'Group' }
+
+-- headers to send for file upload
+-- copied from WinHttp.WinHttpRequest component defaults
+-- Connection: Keep-Alive is the key header!
+-- Expect: removes the Expext: 100-continue header
+httpHeaders = { 
+  'Accept: */*',
+  'User-Agent: Mozilla/4.0 (compatible; Win32; WinHttp.WinHttpRequest.5)',
+  'Version: HTTP/1.1',
+  'Connection: Keep-Alive',
+  'Expect:'
+}
 
 function string:is_empty()
   return not string.find(self, "%S")
@@ -101,7 +115,7 @@ function readtab(fname, headers, rowfn)
   local columns = { }
   while true do
     local line = io.read()
-    if verboseFlag then io.stderr:write("reading " .. fname .. " line " .. lno .. "\n") end
+    if verboseFlag > 0 then io.stderr:write("reading " .. fname .. " line " .. lno .. "\n") end
     if line == nil then break end
     line = string.gsub(line, "\r$", "") -- handle CRLF
     if lno == 0 then
@@ -120,7 +134,7 @@ function readtab(fname, headers, rowfn)
         if string.is_empty(v) then row[k] = nil end
       end
       local status, err = pcall(rowfn, row, fname, lno)
-      if verboseFlag and not status then
+      if verboseFlag > 0 and not status then
         io.stderr:write("row invalid: " .. err .. "\n")
       end
     end
@@ -165,12 +179,12 @@ function writestaffrow(row, fname, lno)
       io.write(string.format("%q,%q,%q,%q,%q,%q\r\n", 
         groups[1] or "", groups[2] or "", groups[3] or "", 
         groups[4] or "", groups[5] or "", groups[6] or ""))
-      if verboseFlag then io.stderr:write("row written\n") end
+      if verboseFlag > 0 then io.stderr:write("row written\n") end
     else
-      if verboseFlag then io.stderr:write("no staff groups\n") end
+      if verboseFlag > 0 then io.stderr:write("no staff groups\n") end
     end
   else
-    if verboseFlag then io.stderr:write("not current staff member\n") end
+    if verboseFlag > 0 then io.stderr:write("not current staff member\n") end
   end
 end
 
@@ -205,7 +219,7 @@ function writestudentrow(row, fname, lno)
   io.write(string.format("%q,%q,%q,%q,%q,%q,", student_number, first_name, last_name, grade_level, language, gender))
   io.write(string.format("%q,%q,%q,%q,%q,%q,", home_phone, mother_work_phone, mother_cell, '', father_work_phone, father_cell))
   io.write(string.format("%q,%q,%q,%q\r\n", mother_email, father_email, schoolid, new_student))
-  if verboseFlag then io.stderr:write("row written\n") end
+  if verboseFlag > 0 then io.stderr:write("row written\n") end
   
   local home2_phone = row[15]
   local mother2_work_phone = row[16]
@@ -229,7 +243,7 @@ function writestudentrow(row, fname, lno)
     io.write(string.format("%q,%q,%q,%q,%q,%q,", nc_reference, first_name, last_name, grade_level, language, gender))
     io.write(string.format("%q,%q,%q,%q,%q,%q,", home2_phone, mother2_work_phone, mother2_cell, '', father2_work_phone, father2_cell))
     io.write(string.format("%q,%q,%q,%q\r\n", mother2_email, father2_email, schoolid, new_student))
-    if verboseFlag then io.stderr:write("NC row written\n") end
+    if verboseFlag > 0 then io.stderr:write("NC row written\n") end
   end
 end
 
@@ -248,7 +262,7 @@ end
 local function build_w_cb(t)
   return function(s,len)
     table.insert(t, s)
-  return len,nil
+    return len,nil
   end
 end
 
@@ -268,25 +282,53 @@ local function h_build_w_cb(t)
         t.codemessage = codemessage:gsub("[\n\r]", "")
       end
     end
-  return len,nil
+    return len,nil
   end
 end
 
--- contactType: "Student" or ""
+function read_file(fileName)
+  local strText = ''
+  local i = assert(io.open(fileName, "rb"))
+  strText = i:read("*all")
+  assert(i:close())
+  return strText,string.len(strText)
+end
+
+function clear_cookie_file()
+  local c = assert(io.open(uploadDir..cookieFile, 'wb'))
+  c:write("# Netscape HTTP Cookie File\n")
+  assert(c:close())
+end
+
+function build_header_options(headers)
+  header_opts = ''
+  for i, value in ipairs(headers) do
+    header_opts = header_opts .. string.format(' -H "%s"', value)
+  end
+  return header_opts
+end
+
+function build_post_options(postdata)
+  post_opts = ''
+  for key, value in pairs(postdata) do
+    if type (value) == "table" and value.file then
+      -- file upload
+      if value.type then
+        post_opts = post_opts .. string.format(' -F "%s=@%s;type=%s"', key, value.file, value.type)
+      else
+        post_opts = post_opts .. string.format(' -F "%s=@%s"', key, value.file)
+      end
+    else
+      -- string
+      post_opts = post_opts .. string.format(' -F "%s=%s"', key, value)
+    end
+  end
+  return post_opts
+end
+
+-- contactType: "Student" or "Staff"
 -- preserveData: true to remove records that aren't uploaded
 function upload_file(uploadFile, contactType, preserveData)
-  if not libcurlLoaded then
-    require("cURL")
-    libcurlLoaded = true
-  end
-
-  local c = cURL.easy_init()
-  c:setopt_url(destURL)
-  c:setopt_followlocation(1)
-  c:setopt_maxredirs(5)
-  c:setopt_cookiejar(cookieFile)
-  
-  -- post file from filesystem
   local postdata = {
     fNTIUser = strUserName,
     fNTIPass = strUserPass,
@@ -296,71 +338,166 @@ function upload_file(uploadFile, contactType, preserveData)
     fSubmit = 1,
     fFile = { file = uploadDir..uploadFile, type = "text/plain" }
   }
-  if verboseFlag then
-    io.stderr:write("Posting to " .. destURL .. "with data:\n")
+  -- -c: cookiejar file
+  -- -o: dump response body to file
+  -- -D: dump response headers to file
+  -- --libcurl: generate compilable libcurl source file
+  -- --trace-ascii: dump more data to file
+  -- -s: silent
+  -- -j: junk previous session cookies
+  -- -L: followlocation
+  -- -e: (auto) referer
+  -- --post301, --post302: keep POSTing on redirect
+  local responseFile = string.gsub(uploadFile, '[.].*$', '-response.html')
+  local curl_command = ''
+  if verboseFlag > 4 then
+    curl_command = string.format('/usr/bin/curl %s %s -c %s -o %s -D %s --libcurl %s --trace-ascii %s -s -j -L -e ";auto" --post301 --post302 %s', 
+      build_header_options(httpHeaders),
+      build_post_options(postdata),
+      uploadDir..cookieFile, 
+      uploadDir..responseFile,
+      uploadDir..headerFile,
+      uploadDir..libcurlFile,
+      uploadDir..traceFile,
+      destURL)
+  else
+    curl_command = string.format('/usr/bin/curl %s %s -c %s -o %s -D %s -s -j -L -e ";auto" --post301 --post302 %s', 
+      build_header_options(httpHeaders),
+      build_post_options(postdata),
+      uploadDir..cookieFile,
+      uploadDir..responseFile,
+      uploadDir..headerFile,
+      destURL)
+  end
+  os.execute(curl_command)
+
+  local s, slen, line
+  local resp = { headers = { } }
+  local response_body = { }
+  local clear_header = false
+
+  -- all of this because when redirecting, curl keeps piling on the 
+  -- header lines. if we see a blank line, and then something non-blank
+  -- we must clear the header info and start afresh
+  local h_func = h_build_w_cb(resp)
+  local i = assert(io.open(uploadDir..headerFile, "rb"))
+  for line in i:lines() do
+    line = string.gsub(line, "[\r\n]+$", "")
+    slen = string.len(line)
+    if slen == 0 then
+      clear_header = true
+    else
+      if clear_header then
+        resp.headers = { }
+        resp.code = nil
+        resp.codemessage = nil
+        clear_header = false
+      end
+      h_func(line, slen)
+    end
+  end
+  assert(i:close())
+  if verboseFlag > 0 then
+    io.stderr:write("Post returned " .. resp.code .. "\n")
+    io.stderr:write(to_string(resp))
+  end
+  
+  local b_func = build_w_cb(response_body)
+  s, slen = read_file(uploadDir..responseFile)
+  b_func(s, slen)
+  return resp, response_body
+end
+
+-- contactType: "Student" or "Staff"
+-- preserveData: true to remove records that aren't uploaded
+function upload_file_via_lua_curl(uploadFile, contactType, preserveData)
+  if not libcurlLoaded then
+    require("cURL")
+    libcurlLoaded = true
+  end
+
+  local postdata = {
+    fNTIUser = strUserName,
+    fNTIPass = strUserPass,
+    fContactType = contactType,
+    fRefreshType = contactType,
+    fPreserveData = preserveData and 1 or 0,
+    fSubmit = 1,
+    fFile = { file = uploadDir..uploadFile, type = "text/plain" }
+  }
+  
+  if verboseFlag > 0 then
+    io.stderr:write("Posting to " .. destURL .. " with data:\n")
     io.stderr:write(to_string(postdata))
   end
-  c:post(postdata)
+
+  clear_cookie_file()
   
   local resp = { headers = { } }
   local response_body = { }
+  local c = cURL.easy_init()
+  c:setopt_httpheader(httpHeaders)
+  c:setopt_cookiejar(uploadDir..cookieFile)
+  c:setopt_cookiefile(uploadDir..cookieFile)
+  c:setopt_followlocation(1)
+  -- c:setopt_autoreferer(1)
+  -- need a post301 / post302 flag?
+  c:setopt_url(destURL)
+  c:post(postdata) -- use multipart/form-data
+  
   c:perform({headerfunction=h_build_w_cb(resp), writefunction=build_w_cb(response_body)})
-  if verboseFlag then 
+  if verboseFlag > 0 then 
     io.stderr:write("Post returned " .. resp.code .. "\n")
     io.stderr:write(to_string(resp))
-  end 
+
+    local responseFile = string.gsub(uploadFile, '[.].*$', '-response.html')
+    local d = assert(io.open(uploadDir..responseFile, 'wb'))
+    d:write(table.concat(response_body, "\n"))
+    assert(d:close())
+  end
+
   return resp,response_body
 end
 
+
 -- process a staff or student job
 -- should mimic vbs script actions
-function process_file(contactType, inputFile, uploadFile, outputFile)
+function process_file(contactType, uploadFile, outputFile)
   local strResults = ""
-  local strText = ""
+  local s
+  local slen
 
-  if verboseFlag then io.stderr:write("Reading input file\n") end
-
-  local i = assert(io.open(uploadDir..inputFile, "rb"))
-  strText = i:read("*all")
-  assert(i:close())
-
-  local s, e, data = string.find(strText, "^%S+[^\r\n]+[\r\n]+(%S+),")
-  if data == nil or string.len(data) == 0 then
+  if verboseFlag > 0 then io.stderr:write("Reading input file\n") end
+  s, slen = read_file(uploadDir..uploadFile)
+  if slen == 0 then 
     -- No Data Found
-    strResults = "Input file has no data"
+    strResults = "Input file has no data."
   else
-    if verboseFlag then io.stderr:write("Creating upload file\n") end
-
-    -- create upload file
-    local u = assert(io.open(uploadDir..uploadFile, "wb"))
-    u:write(strText)
-    assert(u:close())
-
-    if verboseFlag then io.stderr:write("Sending upload file\n") end
-
-    local status, err_or_resp, response_body = pcall(upload_file, uploadFile, contactType, true)
-    if status then
-      if err_or_resp.code and err_or_resp.code >= 200 and err_or_resp.code < 400 then
+    -- local status, err_or_resp, response_body = pcall(upload_file, uploadFile, contactType, 1)
+    local status, err_or_resp, response_body = pcall(upload_file_via_lua_curl, uploadFile, contactType, 1)
+    if status and err_or_resp.code then
+      if err_or_resp.code == 200 then
         strResults = "Completed without errors"
       else
-        if response_body then
-          strResults = table.concat(response_body, "\n")
-        else
-          strResults = "Post Failed?  No response body"
-        end
+        strResults = "Status returned was "..err_or_resp.code
+      end
+      if response_body then
+        strResults = strResults .. ".\nResponse message:\n" .. table.concat(response_body, "\n")
+      else
+        strResults = strResults .. ", with no response message.\n"
       end
     else
-      strResults = "Post Failed. " .. err_or_resp
+      strResults = "Post failed with error: " .. err_or_resp
     end
   end
 
-  if verboseFlag then io.stderr:write(strResults .. "\n") end
+  if verboseFlag > 0 then io.stderr:write(strResults .. "\n") end
 
   local f = assert(io.open(uploadDir..outputFile, "w"))
   f:write(strResults)
   assert(f:close())
 
-  if verboseFlag then io.stderr:write("Job complete\n") end
+  if verboseFlag > 0 then io.stderr:write("Job complete\n") end
 end
 
 -- begin main script
@@ -370,5 +507,5 @@ end
 -- create_csv_file("ps-students.txt", "students.csv", studentHeaders, writestudentrow)
 
 -- upload converted files to BBC
-process_file("Staff", "staff.csv", "staff_upload.txt", "staff_output.txt")
--- process_file("Student", "students.csv", "student_upload.txt", "student_output.txt")
+process_file("Staff", "staff.csv", "staff_output.txt")
+-- process_file("Student", "students.csv", "student_output.txt")

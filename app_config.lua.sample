@@ -2,7 +2,7 @@
 -- sample file; please use real values and save as app_config.lua
 
 -- global variable setup
-verboseFlag = true
+verboseFlag = 1
 sourceDir = '/path-to-exported-powerschool-autosend-files/'
 uploadDir = '/path-to-working-upload-directory/'
 
