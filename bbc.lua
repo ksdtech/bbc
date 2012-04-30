@@ -328,7 +328,7 @@ end
 
 -- contactType: "Student" or "Staff"
 -- preserveData: true to remove records that aren't uploaded
-function upload_file(uploadFile, contactType, preserveData)
+function upload_file_via_shell(uploadFile, contactType, preserveData)
   local postdata = {
     fNTIUser = strUserName,
     fNTIPass = strUserPass,
@@ -460,9 +460,9 @@ function upload_file_via_lua_curl(uploadFile, contactType, preserveData)
 end
 
 
--- process a staff or student job
--- should mimic vbs script actions
-function process_file(contactType, uploadFile, outputFile)
+-- Upload a staff or student contact file and write a status file
+-- Mimic return status of vbs script
+function upload_file(contactType, uploadFile, outputFile)
   local strResults = ""
   local s
   local slen
@@ -503,9 +503,9 @@ end
 -- begin main script
 
 -- convert powerschool autosend files to BBC csv format
--- create_csv_file("ps-staff.txt", "staff.csv", staffHeaders, writestaffrow)
--- create_csv_file("ps-students.txt", "students.csv", studentHeaders, writestudentrow)
+create_csv_file("ps-staff.txt", "staff.csv", staffHeaders, writestaffrow)
+create_csv_file("ps-students.txt", "students.csv", studentHeaders, writestudentrow)
 
 -- upload converted files to BBC
-process_file("Staff", "staff.csv", "staff_output.txt")
--- process_file("Student", "students.csv", "student_output.txt")
+upload_file("Staff", "staff.csv", "staff_output.txt")
+upload_file("Student", "students.csv", "student_output.txt")
