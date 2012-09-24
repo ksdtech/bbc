@@ -11,6 +11,74 @@ libcurlFile = 'curl.c'
 traceFile = 'trace.txt'
 libcurlLoaded = false
 
+-- bbc-students AutoSend fields
+-- tab field delimiter, lf line delimiter, no headers
+autosend_student_fields = [[
+Student_Number
+First_Name
+Last_Name
+Grade_Level
+Gender
+HomeRoom_Teacher
+SchoolID
+Home_Phone
+Mother_Work_Phone
+Mother_Cell
+Father_Work_Phone
+Father_Cell
+Mother_Email
+Father_Email
+Home2_Phone
+Mother2_Work_Phone
+Mother2_Cell
+Father2_Work_Phone
+Father2_Cell
+Mother2_Email
+Father2_Email
+Enroll_Status
+Network_Id
+Network_Password
+Web_Id
+Web_Password
+Home_Id
+Mother_Staff_Id
+Mother_First
+Mother
+Father_Staff_Id
+Father_First
+Father
+Home2_Id
+Mother2_Staff_Id
+Mother2_First
+Mother2_Last
+Father2_Staff_Id
+Father2_First
+Father2_Last
+EntryCode
+Lang_Adults_Primary
+CA_ELAStatus
+]]
+
+-- bbc-staff AutoSend fields
+-- tab field delimiter, lf line delimiter, no headers
+autosend_staff_fields = [[
+Status
+Staffstatus
+Title
+Teachernumber
+First_Name
+Last_Name
+Gender
+Schoolid
+Home_Phone
+Cell
+Email_Addr
+Email_Personal
+Network_Id
+Network_Password
+Group_Membership
+]]
+
 -- headers for staff file
 -- 6 groups
 staffHeaders   = { 'ReferenceCode', 'FirstName', 'LastName',
@@ -23,7 +91,7 @@ studentHeaders = { 'ReferenceCode', 'FirstName', 'LastName',
   'Grade', 'Language', 'Gender',
   'HomePhone', 'WorkPhone', 'MobilePhone',
   'HomePhoneAlt', 'WorkPhoneAlt', 'MobilePhoneAlt',
-  'EmailAddress', 'EmailAddressAlt', 'Institution', 'Group' }
+  'EmailAddress', 'EmailAddressAlt', 'Institution', 'Group', 'Group', 'Group' }
 
 -- headers to send for file upload
 -- copied from WinHttp.WinHttpRequest component defaults
@@ -192,6 +260,8 @@ end
 -- in this function
 function writestudentrow(row, fname, lno)
   -- student fields
+  local language = 'English'
+  local groups = { }
   local student_number = row[1]
   local first_name = row[2]
   local last_name = row[3]
@@ -206,19 +276,30 @@ function writestudentrow(row, fname, lno)
   local father_cell = row[12] or ""
   local mother_email = row[13] or ""
   local father_email = row[14] or ""
-  local new_student = ""
+  local enroll_status = tonumber(row[22] or 0)
   local entrycode = row[41] or ""
-  if string.find(entrycode, "[NR]D") then new_student = 'New Students' end
-  local language = 'English'
   -- TODO: add support for Spanish
   -- local lang_adults_primary = row[42] or "00"
   -- if lang_adults_primary == "01" then language = 'Spanish' end
+  local ela_status = row[43] or "EO"
+  if schoolid == "999999" then 
+    schoolid = "104"
+    grade_level = "8"
+    table.insert(groups, "Graduates")
+  elseif enroll_status < 0 or string.find(entrycode, "[NR]D") then 
+    table.insert(groups, "New Students")
+  end
+  if ela_status == "EL" then
+    table.insert(groups, "ELAC")
+  end
 
   -- output a row that matches studentHeaders fields for primary family
   -- only group is whether student is new to district or not
   io.write(string.format("%q,%q,%q,%q,%q,%q,", student_number, first_name, last_name, grade_level, language, gender))
   io.write(string.format("%q,%q,%q,%q,%q,%q,", home_phone, mother_work_phone, mother_cell, '', father_work_phone, father_cell))
-  io.write(string.format("%q,%q,%q,%q\r\n", mother_email, father_email, schoolid, new_student))
+  io.write(string.format("%q,%q,%q,", mother_email, father_email, schoolid))
+  io.write(string.format("%q,%q,%q\r\n", groups[1] or "", groups[2] or "", groups[3] or ""))
+  
   if verboseFlag > 0 then io.stderr:write("row written\n") end
   
   local home2_phone = row[15]
@@ -242,7 +323,9 @@ function writestudentrow(row, fname, lno)
     -- no groups
     io.write(string.format("%q,%q,%q,%q,%q,%q,", nc_reference, first_name, last_name, grade_level, language, gender))
     io.write(string.format("%q,%q,%q,%q,%q,%q,", home2_phone, mother2_work_phone, mother2_cell, '', father2_work_phone, father2_cell))
-    io.write(string.format("%q,%q,%q,%q\r\n", mother2_email, father2_email, schoolid, new_student))
+    io.write(string.format("%q,%q,%q,", mother2_email, father2_email, schoolid))
+    io.write(string.format("%q,%q,%q\r\n", groups[1] or "", groups[2] or "", groups[3] or ""))
+      
     if verboseFlag > 0 then io.stderr:write("NC row written\n") end
   end
 end
@@ -501,6 +584,10 @@ function process_file(contactType, uploadFile, outputFile)
 end
 
 -- begin main script
+
+-- convert prereg students
+-- create_csv_file("classof2012.txt", "classof2012.csv", studentHeaders, writestudentrow)
+-- process_file("Other", "classof2012.csv", "classof2012_output.txt")
 
 -- convert powerschool autosend files to BBC csv format
 create_csv_file("ps-staff.txt", "staff.csv", staffHeaders, writestaffrow)
