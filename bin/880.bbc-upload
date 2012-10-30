@@ -1,6 +1,6 @@
 #!/bin/sh
 
 # Blackboard Connect upload script
-cd /usr/local/webapps/bbc
+cd /Volumes/kweb-d0-content/webapps-root/bbc
 rm -f ./uploads/*
 /usr/local/bin/lua bbc.lua
