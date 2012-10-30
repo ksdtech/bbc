@@ -1,14 +1,19 @@
 -- bbc.lua
 -- generate students.csv and staff.csv nightly and upload them to Blackboard Connect
 
-require "table_print"
-require "app_config"
+require 'table_print'
+require 'app_config'
+
+-- algorithm to select PrimaryPhone and AdditionalPhone
+phone_prefs = { 'mother_cell', 'father_cell', 'home_phone',
+  'mother_work_phone', 'father_work_phone' 
+}
 
 -- used with curl command
-cookieFile = "cookies.txt"
-headerFile = 'headers.txt'
-libcurlFile = 'curl.c'
-traceFile = 'trace.txt'
+cookieFile    = 'cookies.txt'
+headerFile    = 'headers.txt'
+libcurlFile   = 'curl.c'
+traceFile     = 'trace.txt'
 libcurlLoaded = false
 
 -- bbc-students AutoSend fields
@@ -91,6 +96,7 @@ studentHeaders = { 'ReferenceCode', 'FirstName', 'LastName',
   'Grade', 'Language', 'Gender',
   'HomePhone', 'WorkPhone', 'MobilePhone',
   'HomePhoneAlt', 'WorkPhoneAlt', 'MobilePhoneAlt',
+  'PrimaryPhone', 'AdditionalPhone',
   'EmailAddress', 'EmailAddressAlt', 'Institution', 'Group', 'Group', 'Group' }
 
 -- headers to send for file upload
@@ -175,6 +181,23 @@ function readcsv(fname, headers, rowfn)
     end
     lno = lno + 1
   end
+end
+
+function get_outreach_phones(phones)
+  local primary_phone = nil
+  local additional_phone = nil
+  for i, key in ipairs(phone_prefs) do
+    local test = phones[key]
+    if test ~= "" then
+      if not primary_phone then
+        primary_phone = test
+      elseif test ~= primary_phone then
+        additional_phone = test
+        break
+      end
+    end
+  end
+  return (primary_phone or ""), (additional_phone or "")
 end
 
 function readtab(fname, headers, rowfn)
@@ -269,11 +292,14 @@ function writestudentrow(row, fname, lno)
   local gender = string.upper(row[5] or "")
   local teacher = row[6] or ""
   local schoolid = row[7]
-  local home_phone = row[8] or ""
-  local mother_work_phone = row[9] or ""
-  local mother_cell = row[10] or ""
-  local father_work_phone = row[11] or ""
-  local father_cell = row[12] or ""
+  local phones = { 
+    home_phone = row[8] or "",
+    mother_work_phone = row[9] or "",
+    mother_cell = row[10] or "",
+    father_work_phone = row[11] or "",
+    father_cell = row[12] or "" 
+  }
+  local primary_phone, additional_phone = get_outreach_phones(phones)
   local mother_email = row[13] or ""
   local father_email = row[14] or ""
   local enroll_status = tonumber(row[22] or 0)
@@ -296,33 +322,37 @@ function writestudentrow(row, fname, lno)
   -- output a row that matches studentHeaders fields for primary family
   -- only group is whether student is new to district or not
   io.write(string.format("%q,%q,%q,%q,%q,%q,", student_number, first_name, last_name, grade_level, language, gender))
-  io.write(string.format("%q,%q,%q,%q,%q,%q,", home_phone, mother_work_phone, mother_cell, '', father_work_phone, father_cell))
+  io.write(string.format("%q,%q,%q,%q,%q,%q,%q,%q,", 
+    phones.home_phone, phones.mother_work_phone, phones.mother_cell, '', 
+    phones.father_work_phone, phones.father_cell,
+    primary_phone, additional_phone))
   io.write(string.format("%q,%q,%q,", mother_email, father_email, schoolid))
   io.write(string.format("%q,%q,%q\r\n", groups[1] or "", groups[2] or "", groups[3] or ""))
   
   if verboseFlag > 0 then io.stderr:write("row written\n") end
   
-  local home2_phone = row[15]
-  local mother2_work_phone = row[16]
-  local mother2_cell = row[17]
-  local father2_work_phone = row[18]
-  local father2_cell = row[19]
-  if home2_phone or mother2_work_phone or mother2_cell or father2_work_phone or father2_cell then
-
+  local phones2 = {
+    home_phone = row[15] or "",
+    mother_work_phone = row[16] or "",
+    mother_cell = row[17] or "",
+    father_work_phone = row[18] or "",
+    father_cell = row[19] or ""
+  }
+  
+  if phones2.home_phone ~= "" or phones2.mother_work_phone ~= "" or phones2.mother_cell ~= "" or phones2.father_work_phone ~= "" or phones2.father_cell ~= "" then
     -- for secondary family, reference code starts with 'NC'
     local nc_reference = 'NC' .. student_number
-    home2_phone = row[15] or ""
-    mother2_work_phone = row[16] or ""
-    mother2_cell = row[17] or ""
-    father2_work_phone = row[18] or ""
-    father2_cell = row[19] or ""
+    local primary_phone2, additional_phone2 = get_outreach_phones(phones2)
     local mother2_email = row[20] or ""
     local father2_email = row[21] or ""
 
     -- output a row that matches studentHeaders fields for secondary family
     -- no groups
     io.write(string.format("%q,%q,%q,%q,%q,%q,", nc_reference, first_name, last_name, grade_level, language, gender))
-    io.write(string.format("%q,%q,%q,%q,%q,%q,", home2_phone, mother2_work_phone, mother2_cell, '', father2_work_phone, father2_cell))
+    io.write(string.format("%q,%q,%q,%q,%q,%q,%q,%q,", 
+      phones2.home_phone, phones2.mother_work_phone, phones2.mother_cell, '', 
+      phones2.father_work_phone, phones2.father_cell,
+      primary_phone2, additional_phone2))
     io.write(string.format("%q,%q,%q,", mother2_email, father2_email, schoolid))
     io.write(string.format("%q,%q,%q\r\n", groups[1] or "", groups[2] or "", groups[3] or ""))
       
