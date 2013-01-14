@@ -4,10 +4,10 @@
 require 'table_print'
 require 'app_config'
 
--- algorithm to select PrimaryPhone and AdditionalPhone
-phone_prefs = { 'mother_cell', 'father_cell', 'home_phone',
-  'mother_work_phone', 'father_work_phone' 
-}
+-- algorithm to select PrimaryPhone and AdditionalPhone, as available
+staff_phone_prefs   = { 'cell', 'home_phone' }
+student_phone_prefs = { 'mother_cell', 'father_cell', 'home_phone', 'mother_work_phone', 'father_work_phone' }
+student_sms_phone_prefs = { 'mother_cell', 'father_cell' }
 
 -- used with curl command
 cookieFile    = 'cookies.txt'
@@ -87,17 +87,22 @@ Group_Membership
 -- headers for staff file
 -- 6 groups
 staffHeaders   = { 'ReferenceCode', 'FirstName', 'LastName',
-  'HomePhone', 'MobilePhone', 'EmailAddress', 'Institution', 
+  'HomePhone', 'MobilePhone', 
+  'SMSPhone',
+  'PrimaryPhone', 'AdditionalPhone',
+  'EmailAddress', 'Institution', 
   'Group', 'Group', 'Group', 'Group', 'Group', 'Group' }
 
 -- headers for students file
--- no groups
+-- 3 groups
 studentHeaders = { 'ReferenceCode', 'FirstName', 'LastName',
   'Grade', 'Language', 'Gender',
   'HomePhone', 'WorkPhone', 'MobilePhone',
   'HomePhoneAlt', 'WorkPhoneAlt', 'MobilePhoneAlt',
+  'SMSPhone', 'SMSPhone2',
   'PrimaryPhone', 'AdditionalPhone',
-  'EmailAddress', 'EmailAddressAlt', 'Institution', 'Group', 'Group', 'Group' }
+  'EmailAddress', 'EmailAddressAlt', 'Institution', 
+  'Group', 'Group', 'Group' }
 
 -- headers to send for file upload
 -- copied from WinHttp.WinHttpRequest component defaults
@@ -183,10 +188,10 @@ function readcsv(fname, headers, rowfn)
   end
 end
 
-function get_outreach_phones(phones)
+function get_outreach_phones(phones, prefs)
   local primary_phone = nil
   local additional_phone = nil
-  for i, key in ipairs(phone_prefs) do
+  for i, key in ipairs(prefs) do
     local test = phones[key]
     if test ~= "" then
       if not primary_phone then
@@ -259,14 +264,23 @@ function writestaffrow(row, fname, lno)
       -- any staff not assigned to school goes into District Office code 102
       local schoolid = row[8] or ""
       if schoolid ~= "103" and schoolid ~= "104" then schoolid = "102" end
-      local home_phone = row[9] or ""
-      local cell = row[10] or ""
+      local phones = { 
+        home_phone = row[9] or "",
+        cell = row[10] or "" 
+      }
+      local primary_phone, additional_phone = get_outreach_phones(phones, staff_phone_prefs)
       local email_address = row[11] or ""
     
       -- output a row that matches staffHeaders fields
+      -- use cell for SMSPhone
+      -- use cell, then home phone for Primary and Alternate
       -- 6 groups
-      io.write(string.format("%q,%q,%q,%q,%q,%q,%q,", teachernumber, 
-        first_name, last_name, home_phone, cell, email_address, schoolid))
+      io.write(string.format("%q,%q,%q,", teachernumber, first_name, last_name))
+      io.write(string.format("%q,%q,%q,%q,%q,%q,%q,", 
+        phones.home_phone, phones.cell, 
+        phones.cell,
+        primary_phone, additional_phone,
+        email_address, schoolid))
       io.write(string.format("%q,%q,%q,%q,%q,%q\r\n", 
         groups[1] or "", groups[2] or "", groups[3] or "", 
         groups[4] or "", groups[5] or "", groups[6] or ""))
@@ -299,7 +313,8 @@ function writestudentrow(row, fname, lno)
     father_work_phone = row[11] or "",
     father_cell = row[12] or "" 
   }
-  local primary_phone, additional_phone = get_outreach_phones(phones)
+  local primary_phone, additional_phone = get_outreach_phones(phones, student_phone_prefs)
+  local sms_phone, sms_phone_2 = get_outreach_phones(phones, student_sms_phone_prefs)
   local mother_email = row[13] or ""
   local father_email = row[14] or ""
   local enroll_status = tonumber(row[22] or 0)
@@ -320,11 +335,14 @@ function writestudentrow(row, fname, lno)
   end
 
   -- output a row that matches studentHeaders fields for primary family
-  -- only group is whether student is new to district or not
+  -- use mother and father cells for SMSPhones
+  -- use cell, then home phone for Primary and Alternate
+  -- possible groups are Graduates, New Students, ELAC
   io.write(string.format("%q,%q,%q,%q,%q,%q,", student_number, first_name, last_name, grade_level, language, gender))
-  io.write(string.format("%q,%q,%q,%q,%q,%q,%q,%q,", 
+  io.write(string.format("%q,%q,%q,%q,%q,%q,%q,%q,%q,%q,", 
     phones.home_phone, phones.mother_work_phone, phones.mother_cell, '', 
     phones.father_work_phone, phones.father_cell,
+    sms_phone, sms_phone_2,
     primary_phone, additional_phone))
   io.write(string.format("%q,%q,%q,", mother_email, father_email, schoolid))
   io.write(string.format("%q,%q,%q\r\n", groups[1] or "", groups[2] or "", groups[3] or ""))
@@ -342,16 +360,17 @@ function writestudentrow(row, fname, lno)
   if phones2.home_phone ~= "" or phones2.mother_work_phone ~= "" or phones2.mother_cell ~= "" or phones2.father_work_phone ~= "" or phones2.father_cell ~= "" then
     -- for secondary family, reference code starts with 'NC'
     local nc_reference = 'NC' .. student_number
-    local primary_phone2, additional_phone2 = get_outreach_phones(phones2)
+    local primary_phone2, additional_phone2 = get_outreach_phones(phones2, student_phone_prefs)
+    local sms_phone2, sms_phone2_2 = get_outreach_phones(phones2, student_sms_phone_prefs)
     local mother2_email = row[20] or ""
     local father2_email = row[21] or ""
 
     -- output a row that matches studentHeaders fields for secondary family
-    -- no groups
     io.write(string.format("%q,%q,%q,%q,%q,%q,", nc_reference, first_name, last_name, grade_level, language, gender))
-    io.write(string.format("%q,%q,%q,%q,%q,%q,%q,%q,", 
+    io.write(string.format("%q,%q,%q,%q,%q,%q,%q,%q,%q,%q,", 
       phones2.home_phone, phones2.mother_work_phone, phones2.mother_cell, '', 
       phones2.father_work_phone, phones2.father_cell,
+      sms_phone2, sms_phone2_2,
       primary_phone2, additional_phone2))
     io.write(string.format("%q,%q,%q,", mother2_email, father2_email, schoolid))
     io.write(string.format("%q,%q,%q\r\n", groups[1] or "", groups[2] or "", groups[3] or ""))
@@ -624,5 +643,5 @@ create_csv_file("ps-staff.txt", "staff.csv", staffHeaders, writestaffrow)
 create_csv_file("ps-students.txt", "students.csv", studentHeaders, writestudentrow)
 
 -- upload converted files to BBC
-process_file("Staff", "staff.csv", "staff_output.txt")
-process_file("Student", "students.csv", "student_output.txt")
+-- process_file("Staff", "staff.csv", "staff_output.txt")
+-- process_file("Student", "students.csv", "student_output.txt")
