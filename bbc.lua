@@ -62,6 +62,20 @@ Father2_Last
 EntryCode
 Lang_Adults_Primary
 CA_ELAStatus
+Reg_Will_Attend
+Form2_Updated_At
+Form3_Updated_At
+Form4_Updated_At
+Form5_Updated_At
+Form6_Updated_At
+Form7_Updated_At
+Form8_Updated_At
+Form9_Updated_At
+Form10_Updated_At
+Form11_Updated_At
+Form12_Updated_At
+Form13_Updated_At
+Form14_Updated_At
 ]]
 
 -- bbc-staff AutoSend fields
@@ -102,7 +116,7 @@ studentHeaders = { 'ReferenceCode', 'FirstName', 'LastName',
   'SMSPhone', 'SMSPhone2',
   'PrimaryPhone', 'AdditionalPhone',
   'EmailAddress', 'EmailAddressAlt', 'Institution', 
-  'Group', 'Group', 'Group' }
+  'Group', 'Group', 'Group', 'Group' }
 
 -- headers to send for file upload
 -- copied from WinHttp.WinHttpRequest component defaults
@@ -211,7 +225,7 @@ function readtab(fname, headers, rowfn)
   local columns = { }
   while true do
     local line = io.read()
-    if verboseFlag > 0 then io.stderr:write("reading " .. fname .. " line " .. lno .. "\n") end
+    if verboseFlag > 2 then io.stderr:write("reading " .. fname .. " line " .. lno .. "\n") end
     if line == nil then break end
     line = string.gsub(line, "\r$", "") -- handle CRLF
     if lno == 0 then
@@ -242,10 +256,13 @@ end
 -- in this function
 function writestaffrow(row, fname, lno)
   -- staff fields
-  local status = 0 + row[1]
+  local status = 0 + (row[1] or 0)
+  local staffstatus = 0 + (row[2] or 0)
   local title = string.lower(row[3] or "")
+  local teachernumber = row[4] or "000000"
+  local first_name = row[5] or ""
+  local last_name = row[6] or ""
   if status == 1 and title ~= 'v-staff' then
-    local staffstatus = 0 + row[2]
     local group_membership = string.lower(row[15] or "")
     local groups = { }
     -- staffstatus 0 is "unassigned"
@@ -256,9 +273,6 @@ function writestaffrow(row, fname, lno)
     if string.find(group_membership, 'administrators') then table.insert(groups, "Administrators") end
     if string.find(group_membership, 'trustees') then table.insert(groups, "Board") end
     if #groups > 0 then
-      local teachernumber = row[4]
-      local first_name = row[5]
-      local last_name = row[6]
       local gender = string.upper(row[7] or "")
       
       -- any staff not assigned to school goes into District Office code 102
@@ -284,12 +298,12 @@ function writestaffrow(row, fname, lno)
       io.write(string.format("%q,%q,%q,%q,%q,%q\r\n", 
         groups[1] or "", groups[2] or "", groups[3] or "", 
         groups[4] or "", groups[5] or "", groups[6] or ""))
-      if verboseFlag > 0 then io.stderr:write("row written\n") end
+      if verboseFlag > 2 then io.stderr:write("row written\n") end
     else
-      if verboseFlag > 0 then io.stderr:write("no staff groups\n") end
+      if verboseFlag > 1 then io.stderr:write(string.format("%s %s %s: no staff groups\n", teachernumber, first_name, last_name)) end
     end
   else
-    if verboseFlag > 0 then io.stderr:write("not current staff member\n") end
+    if verboseFlag > 1 then io.stderr:write(string.format("%s %s %s: not a current staff member\n", teachernumber, first_name, last_name)) end
   end
 end
 
@@ -297,6 +311,7 @@ end
 -- in this function
 function writestudentrow(row, fname, lno)
   -- student fields
+  local i, j, y, m, d
   local language = 'English'
   local groups = { }
   local student_number = row[1]
@@ -323,6 +338,7 @@ function writestudentrow(row, fname, lno)
   -- local lang_adults_primary = row[42] or "00"
   -- if lang_adults_primary == "01" then language = 'Spanish' end
   local ela_status = row[43] or "EO"
+  local will_attend = row[44] or ""
   if schoolid == "999999" then 
     schoolid = "104"
     grade_level = "8"
@@ -333,7 +349,36 @@ function writestudentrow(row, fname, lno)
   if ela_status == "EL" then
     table.insert(groups, "ELAC")
   end
-
+  if schoolid == "103" or schoolid == "104" then
+    local will_attend = row[44] or ""
+    i, j = string.find(will_attend, "nr-")
+    if i == 1 then
+      -- not returning
+      table.insert(groups, "Registration Will Be Exiting")
+    else 
+      -- blank (unknown) or returning
+      local pages_completed = 0
+      local pages_required = 0
+      for k = 2,14 do
+        local date = row[43+k] or "0000-00-00"
+        date = string.sub(date, 1, 10)
+        -- give 'em a pass for PTA, kik and SRS forms
+        if k < 11 or k > 13 then
+          pages_required = pages_required + 1
+          -- WARNING: hard coded date!
+          if date >= "2013-03-27" then 
+            pages_completed = pages_completed + 1 
+          end
+        end
+      end
+      if pages_completed == 0 then
+        table.insert(groups, "Registration Not Started")
+      elseif pages_completed < pages_required then
+        table.insert(groups, "Registration Partially Complete")
+      end
+    end
+  end
+  
   -- output a row that matches studentHeaders fields for primary family
   -- use mother and father cells for SMSPhones
   -- use cell, then home phone for Primary and Alternate
@@ -345,9 +390,9 @@ function writestudentrow(row, fname, lno)
     sms_phone, sms_phone_2,
     primary_phone, additional_phone))
   io.write(string.format("%q,%q,%q,", mother_email, father_email, schoolid))
-  io.write(string.format("%q,%q,%q\r\n", groups[1] or "", groups[2] or "", groups[3] or ""))
+  io.write(string.format("%q,%q,%q,%q\r\n", groups[1] or "", groups[2] or "", groups[3] or "", groups[4] or ""))
   
-  if verboseFlag > 0 then io.stderr:write("row written\n") end
+  if verboseFlag > 2 then io.stderr:write("row written\n") end
   
   local phones2 = {
     home_phone = row[15] or "",
@@ -373,9 +418,9 @@ function writestudentrow(row, fname, lno)
       sms_phone2, sms_phone2_2,
       primary_phone2, additional_phone2))
     io.write(string.format("%q,%q,%q,", mother2_email, father2_email, schoolid))
-    io.write(string.format("%q,%q,%q\r\n", groups[1] or "", groups[2] or "", groups[3] or ""))
+    io.write(string.format("%q,%q,%q,%q\r\n", groups[1] or "", groups[2] or "", groups[3] or "", groups[4] or ""))
       
-    if verboseFlag > 0 then io.stderr:write("NC row written\n") end
+    if verboseFlag > 2 then io.stderr:write("NC row written\n") end
   end
 end
 
@@ -643,5 +688,5 @@ create_csv_file("ps-staff.txt", "staff.csv", staffHeaders, writestaffrow)
 create_csv_file("ps-students.txt", "students.csv", studentHeaders, writestudentrow)
 
 -- upload converted files to BBC
--- process_file("Staff", "staff.csv", "staff_output.txt")
--- process_file("Student", "students.csv", "student_output.txt")
+process_file("Staff", "staff.csv", "staff_output.txt")
+process_file("Student", "students.csv", "student_output.txt")
