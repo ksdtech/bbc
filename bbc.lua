@@ -4,6 +4,12 @@
 require 'table_print'
 require 'app_config'
 
+-- allow pre-reg groups
+preRegGroups = 1
+
+-- allow online reg status grups
+regStatusGroups = 0
+
 -- algorithm to select PrimaryPhone and AdditionalPhone, as available
 staff_phone_prefs   = { 'cell', 'home_phone' }
 student_phone_prefs = { 'mother_cell', 'father_cell', 'home_phone', 'mother_work_phone', 'father_work_phone' }
@@ -317,7 +323,7 @@ function writestudentrow(row, fname, lno)
   local student_number = row[1]
   local first_name = row[2]
   local last_name = row[3]
-  local grade_level = row[4]
+  local grade_level = 0 + row[4]
   local gender = string.upper(row[5] or "")
   local teacher = row[6] or ""
   local schoolid = row[7]
@@ -339,51 +345,65 @@ function writestudentrow(row, fname, lno)
   -- if lang_adults_primary == "01" then language = 'Spanish' end
   local ela_status = row[43] or "EO"
   local will_attend = row[44] or ""
-  if schoolid == "999999" then 
-    schoolid = "104"
-    grade_level = "8"
-    table.insert(groups, "Graduates")
-  elseif enroll_status < 0 or string.find(entrycode, "[NR]D") then 
-    table.insert(groups, "New Students")
-  end
   if ela_status == "EL" then
     table.insert(groups, "ELAC")
   end
+  if schoolid == "999999" then 
+    schoolid = "104"
+    grade_level = 8
+    table.insert(groups, "Graduates")
+  end
   if schoolid == "103" or schoolid == "104" then
-    local will_attend = row[44] or ""
-    i, j = string.find(will_attend, "nr-")
-    if i == 1 then
-      -- not returning
-      table.insert(groups, "Registration Will Be Exiting")
-    else 
-      -- blank (unknown) or returning
-      local pages_completed = 0
-      local pages_required = 0
-      for k = 2,14 do
-        local date = row[43+k] or "0000-00-00"
-        date = string.sub(date, 1, 10)
-        -- give 'em a pass for PTA, kik and SRS forms
-        if k < 11 or k > 13 then
-          pages_required = pages_required + 1
-          -- WARNING: hard coded date!
-          if date >= "2013-03-27" then 
-            pages_completed = pages_completed + 1 
+    if enroll_status < 0 or string.find(entrycode, "[NR]D") then 
+      table.insert(groups, "New Students")
+    end
+    if preRegGroups > 0 and enroll_status < 0 then
+      if grade_level == 0 then
+        schoolid = "103"
+        table.insert(groups, "Pre-Registered K")
+      elseif grade_level <= 4 then
+        schoolid = "103"
+        table.insert(groups, "Pre-Registered 1-4")
+      else
+        schoolid = "104"
+        table.insert(groups, "Pre-Registered 5-8")
+      end
+    end
+    if regStatusGroups > 0 then
+      local will_attend = row[44] or ""
+      i, j = string.find(will_attend, "nr-")
+      if i == 1 then
+        -- not returning
+        table.insert(groups, "Registration Will Be Exiting")
+      else 
+        -- blank (unknown) or returning
+        local pages_completed = 0
+        local pages_required = 0
+        for k = 2,14 do
+          local date = row[43+k] or "0000-00-00"
+          date = string.sub(date, 1, 10)
+          -- give 'em a pass for PTA, kik and SRS forms
+          if k < 11 or k > 13 then
+            pages_required = pages_required + 1
+            -- WARNING: hard coded date!
+            if date >= "2013-03-27" then 
+              pages_completed = pages_completed + 1 
+            end
           end
         end
-      end
-      if pages_completed == 0 then
-        table.insert(groups, "Registration Not Started")
-      elseif pages_completed < pages_required then
-        table.insert(groups, "Registration Partially Complete")
+        if pages_completed == 0 then
+          table.insert(groups, "Registration Not Started")
+        elseif pages_completed < pages_required then
+          table.insert(groups, "Registration Partially Complete")
+        end
       end
     end
   end
-  
   -- output a row that matches studentHeaders fields for primary family
   -- use mother and father cells for SMSPhones
   -- use cell, then home phone for Primary and Alternate
   -- possible groups are Graduates, New Students, ELAC
-  io.write(string.format("%q,%q,%q,%q,%q,%q,", student_number, first_name, last_name, grade_level, language, gender))
+  io.write(string.format("%q,%q,%q,%d,%q,%q,", student_number, first_name, last_name, grade_level, language, gender))
   io.write(string.format("%q,%q,%q,%q,%q,%q,%q,%q,%q,%q,", 
     phones.home_phone, phones.mother_work_phone, phones.mother_cell, '', 
     phones.father_work_phone, phones.father_cell,
@@ -679,7 +699,7 @@ end
 
 -- begin main script
 
--- convert prereg students
+-- convert graduating students
 -- create_csv_file("classof2012.txt", "classof2012.csv", studentHeaders, writestudentrow)
 -- process_file("Other", "classof2012.csv", "classof2012_output.txt")
 
