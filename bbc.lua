@@ -4,8 +4,11 @@
 require 'table_print'
 require 'app_config'
 
+-- start of valid reg form updates
+regFormStartDate = "2013-03-27"
+
 -- allow pre-reg groups
-preRegGroups = 1
+preRegGroups = 0
 
 -- allow online reg status grups
 regStatusGroups = 0
@@ -14,6 +17,7 @@ regStatusGroups = 0
 staff_phone_prefs   = { 'cell', 'home_phone' }
 student_phone_prefs = { 'mother_cell', 'father_cell', 'home_phone', 'mother_work_phone', 'father_work_phone' }
 student_sms_phone_prefs = { 'mother_cell', 'father_cell' }
+
 
 -- used with curl command
 cookieFile    = 'cookies.txt'
@@ -225,7 +229,7 @@ function get_outreach_phones(phones, prefs)
   return (primary_phone or ""), (additional_phone or "")
 end
 
-function readtab(fname, headers, rowfn)
+function readtab(fname, headers, rowfn, group)
   io.input(sourceDir..fname)
   local lno = headers and 0 or 1
   local columns = { }
@@ -249,7 +253,7 @@ function readtab(fname, headers, rowfn)
       for k, v in pairs(row) do
         if string.is_empty(v) then row[k] = nil end
       end
-      local status, err = pcall(rowfn, row, fname, lno)
+      local status, err = pcall(rowfn, row, fname, lno, group)
       if verboseFlag > 0 and not status then
         io.stderr:write("row invalid: " .. err .. "\n")
       end
@@ -260,7 +264,7 @@ end
 
 -- convert row. if autosend fields are changed, you must change the logic
 -- in this function
-function writestaffrow(row, fname, lno)
+function writestaffrow(row, fname, lno, group)
   -- staff fields
   local status = 0 + (row[1] or 0)
   local staffstatus = 0 + (row[2] or 0)
@@ -272,6 +276,7 @@ function writestaffrow(row, fname, lno)
     local group_membership = string.lower(row[15] or "")
     local groups = { }
     -- staffstatus 0 is "unassigned"
+    if group then table.insert(groups, group) end
     if staffstatus == 1 then table.insert(groups, "Certificated") end
     if staffstatus == 2 then table.insert(groups, "Classified") end
     -- staffstatus 3 is "lunch staff"
@@ -315,7 +320,7 @@ end
 
 -- convert row. if autosend fields are changed, you must change the logic
 -- in this function
-function writestudentrow(row, fname, lno)
+function writestudentrow(row, fname, lno, group)
   -- student fields
   local i, j, y, m, d
   local language = 'English'
@@ -339,12 +344,15 @@ function writestudentrow(row, fname, lno)
   local mother_email = row[13] or ""
   local father_email = row[14] or ""
   local enroll_status = tonumber(row[22] or 0)
+  
   local entrycode = row[41] or ""
   -- TODO: add support for Spanish
   -- local lang_adults_primary = row[42] or "00"
   -- if lang_adults_primary == "01" then language = 'Spanish' end
   local ela_status = row[43] or "EO"
   local will_attend = row[44] or ""
+  
+  if group then table.insert(groups, group) end
   if ela_status == "EL" then
     table.insert(groups, "ELAC")
   end
@@ -386,7 +394,7 @@ function writestudentrow(row, fname, lno)
           if k < 11 or k > 13 then
             pages_required = pages_required + 1
             -- WARNING: hard coded date!
-            if date >= "2013-03-27" then 
+            if date >= regFormStartDate then 
               pages_completed = pages_completed + 1 
             end
           end
@@ -399,6 +407,7 @@ function writestudentrow(row, fname, lno)
       end
     end
   end
+  
   -- output a row that matches studentHeaders fields for primary family
   -- use mother and father cells for SMSPhones
   -- use cell, then home phone for Primary and Alternate
@@ -445,12 +454,12 @@ function writestudentrow(row, fname, lno)
 end
 
 -- convert powerschool autosend files to csv format required by Blackboard Connect
-function create_csv_file(psFile, csvFile, headers, rowfn)
+function create_csv_file(psFile, csvFile, headers, rowfn, group)
   local o = assert(io.open(uploadDir..csvFile, "wb"))
   o:write(table.concat(headers, ','))
   o:write("\r\n")
   io.output(o)
-  readtab(psFile, false, rowfn)
+  readtab(psFile, false, rowfn, group)
   o:close()
 end
 
@@ -699,13 +708,17 @@ end
 
 -- begin main script
 
+-- convert pre-reg students
+-- create_csv_file("preregs.txt", "preregs.csv", studentHeaders, writestudentrow, nil)
+-- process_file("Other", "preregs.csv", "preregs_output.txt")
+
 -- convert graduating students
--- create_csv_file("classof2012.txt", "classof2012.csv", studentHeaders, writestudentrow)
--- process_file("Other", "classof2012.csv", "classof2012_output.txt")
+-- create_csv_file("graduating.txt", "graduating.csv", studentHeaders, writestudentrow, "Graduated 2013")
+-- process_file("Other", "graduating.csv", "graduating_output.txt")
 
 -- convert powerschool autosend files to BBC csv format
-create_csv_file("ps-staff.txt", "staff.csv", staffHeaders, writestaffrow)
-create_csv_file("ps-students.txt", "students.csv", studentHeaders, writestudentrow)
+create_csv_file("ps-staff.txt", "staff.csv", staffHeaders, writestaffrow, nil)
+create_csv_file("ps-students.txt", "students.csv", studentHeaders, writestudentrow, nil)
 
 -- upload converted files to BBC
 process_file("Staff", "staff.csv", "staff_output.txt")
