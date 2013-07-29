@@ -10,8 +10,11 @@ regFormStartDate = "2013-03-27"
 -- allow pre-reg groups
 preRegGroups = 0
 
--- allow online reg status grups
-regStatusGroups = 0
+-- allow online reg status groups
+-- 0 - do not add these groups
+-- 1 - check pre-regs (before EOY)
+-- 2 - check active (after EOY)
+regStatusGroups = 2
 
 -- algorithm to select PrimaryPhone and AdditionalPhone, as available
 staff_phone_prefs   = { 'cell', 'home_phone' }
@@ -378,12 +381,17 @@ function writestudentrow(row, fname, lno, group)
       end
     end
     if regStatusGroups > 0 then
-      local will_attend = row[44] or ""
-      i, j = string.find(will_attend, "nr-")
-      if i == 1 then
-        -- not returning
-        table.insert(groups, "Registration Will Be Exiting")
-      else 
+      local attending = true
+      if regStatusGroups == 1 then
+        local will_attend = row[44] or ""
+        i, j = string.find(will_attend, "nr-")
+        if i == 1 then
+          -- not returning
+          attending = false
+          table.insert(groups, "Registration Will Be Exiting")
+        end
+      end
+      if attending then
         -- blank (unknown) or returning
         local pages_completed = 0
         local pages_required = 0
