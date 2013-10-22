@@ -118,10 +118,11 @@ staffHeaders   = { 'ReferenceCode', 'FirstName', 'LastName',
   'SMSPhone',
   'PrimaryPhone', 'AdditionalPhone',
   'EmailAddress', 'Institution', 
-  'Group', 'Group', 'Group', 'Group', 'Group', 'Group' }
+  'RefreshGroup', 'RefreshGroup', 'RefreshGroup', 
+  'RefreshGroup', 'RefreshGroup', 'RefreshGroup' }
 
 -- headers for students file
--- 3 groups
+-- 6 groups
 studentHeaders = { 'ReferenceCode', 'FirstName', 'LastName',
   'Grade', 'Language', 'Gender',
   'HomePhone', 'WorkPhone', 'MobilePhone',
@@ -129,7 +130,8 @@ studentHeaders = { 'ReferenceCode', 'FirstName', 'LastName',
   'SMSPhone', 'SMSPhone2',
   'PrimaryPhone', 'AdditionalPhone',
   'EmailAddress', 'EmailAddressAlt', 'Institution', 
-  'Group', 'Group', 'Group', 'Group' }
+  'RefreshGroup', 'RefreshGroup', 'RefreshGroup',
+  'RefreshGroup', 'RefreshGroup', 'RefreshGroup' }
 
 -- headers to send for file upload
 -- copied from WinHttp.WinHttpRequest component defaults
@@ -302,7 +304,6 @@ function writestaffrow(row, fname, lno, group)
       -- output a row that matches staffHeaders fields
       -- use cell for SMSPhone
       -- use cell, then home phone for Primary and Alternate
-      -- 6 groups
       io.write(string.format("%q,%q,%q,", teachernumber, first_name, last_name))
       io.write(string.format("%q,%q,%q,%q,%q,%q,%q,", 
         phones.home_phone, phones.cell, 
@@ -312,6 +313,7 @@ function writestaffrow(row, fname, lno, group)
       io.write(string.format("%q,%q,%q,%q,%q,%q\r\n", 
         groups[1] or "", groups[2] or "", groups[3] or "", 
         groups[4] or "", groups[5] or "", groups[6] or ""))
+        
       if verboseFlag > 2 then io.stderr:write("row written\n") end
     else
       if verboseFlag > 1 then io.stderr:write(string.format("%s %s %s: no staff groups\n", teachernumber, first_name, last_name)) end
@@ -427,7 +429,9 @@ function writestudentrow(row, fname, lno, group)
     sms_phone, sms_phone_2,
     primary_phone, additional_phone))
   io.write(string.format("%q,%q,%q,", mother_email, father_email, schoolid))
-  io.write(string.format("%q,%q,%q,%q\r\n", groups[1] or "", groups[2] or "", groups[3] or "", groups[4] or ""))
+  io.write(string.format("%q,%q,%q,%q,%q,%q\r\n", 
+    groups[1] or "", groups[2] or "", groups[3] or "", 
+    groups[4] or "", groups[5] or "", groups[6] or ""))
   
   if verboseFlag > 2 then io.stderr:write("row written\n") end
   
@@ -455,7 +459,9 @@ function writestudentrow(row, fname, lno, group)
       sms_phone2, sms_phone2_2,
       primary_phone2, additional_phone2))
     io.write(string.format("%q,%q,%q,", mother2_email, father2_email, schoolid))
-    io.write(string.format("%q,%q,%q,%q\r\n", groups[1] or "", groups[2] or "", groups[3] or "", groups[4] or ""))
+    io.write(string.format("%q,%q,%q,%q,%q,%q\r\n", 
+      groups[1] or "", groups[2] or "", groups[3] or "", 
+      groups[4] or "", groups[5] or "", groups[6] or ""))
       
     if verboseFlag > 2 then io.stderr:write("NC row written\n") end
   end
