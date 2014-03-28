@@ -93,27 +93,30 @@ Group_Membership
 -- course fields
 autosend_section_fields = [[
 id
-course_number
-section_number
 schoolid
+course_number
 [02]course_name
-[05]teachernumber
+[02]code
+section_number
 [13]abbreviation
+expression
+[05]teachernumber
 [05]last_name
 ]]
 
 -- cc fields
 autosend_roster_fields = [[
 sectionid
-course_number
-section_number
 schoolid
+course_number
 [02]course_name
-[05]teachernumber
+[02]code
+section_number
 [13]abbreviation
+expression
+[05]teachernumber
 [05]last_name
 [01]student_number
-expression
 ]]
 
 -- number of elements in table (table.getn is for "lists" only)
@@ -265,7 +268,15 @@ if debugFlag then
 	included_students = { ['111984']=true, ['111985']=true }
 end
 
-excluded_courses = { ['9991']=true, ['9993']=true, ['9996']=true, ['9997']=true }
+excluded_courses = { 
+	['AAAA']=true, -- attendance
+	['9966']=true, -- study period
+	['9977']=true, -- student aide
+	['9991']=true, 
+	['9993']=true, 
+	['9996']=true, 
+	['9997']=true, -- grade level grouping
+}
 class_table = { }
 course_terms = { }
 assigned_teachers = { }
@@ -290,11 +301,23 @@ function check_school(sid)
 end
 
 function check_class(cid)
-	return enrolled_classes[cid]
+	return cid and enrolled_classes[cid]
 end
 
 function full_year(term)
 	return not term:match('^[STQH][1-6]$')
+end
+
+function make_class_id(class_abbr, teacher_last, term, course_name, course_number)
+	if not class_abbr then
+		io.stderr:write("no abbreviation for course " .. course_name .. " (" .. course_number .. ")\n")
+		return nil
+	end
+	local class_id = class_abbr .. "-" .. string.upper(string.sub(teacher_last, 1, 3))
+	if not full_year(term) then 
+		class_id = class_id .. "-" .. term
+	end
+	return class_id
 end
 
 -- convert row. if autosend fields are changed, you must change the logic
@@ -323,25 +346,27 @@ end
 -- in this function
 function writeschedulerow(row, fname, lno)
   -- cc fields
-	local course_number = row[2]
-  local schoolid = row[4]
-  local student_number = row[9] or ""
+  local schoolid = row[2]
+	local course_number = row[3]
+  local student_number = row[11] or ""
 
   if enrolled_students[student_number] and check_course(course_number) and check_school(schoolid) then
-  	local section_number = row[3]
-		local teachernumber = row[6]
+		local course_name = (row[4] or ""):trim6()
+		local class_abbr = row[5]
+  	local section_number = row[6]
 		local term = row[7]
-		local class_id = "C" .. schoolid .. "-" .. course_number .. "-" .. teachernumber
-		if not full_year(term) then 
-			class_id = class_id .. "-" .. term
-		end
-		enrolled_classes[class_id] = true
+		local teachernumber = row[9]
+		local teacher_last = row[10]
+		local class_id = make_class_id(class_abbr, teacher_last, term, course_name, course_number)
+		if class_id then
+			enrolled_classes[class_id] = true
 		
-	  -- output a row 
-	  -- "ClassID","StudentID","SchoolID" 
-	  io.write(string.format("%q,%q,%q\r\n", class_id, "S" .. student_number, schoolid))
+		  -- output a row 
+		  -- "ClassID","StudentID","SchoolID" 
+		  io.write(string.format("%q,%q,%q\r\n", class_id, "S" .. student_number, schoolid))
   
-	  if verboseFlag > 2 then io.stderr:write("row written\n") end
+		  if verboseFlag > 2 then io.stderr:write("row written\n") end
+		end
 	end
 end
 
@@ -349,26 +374,26 @@ end
 -- in this function
 function writeclassrow(row, fname, lno)
   -- section fields
-	local course_number = row[2]
-  local schoolid = row[4]
-	local teachernumber = row[6] or ""
+  local schoolid = row[2]
+	local course_number = row[3]
+	local course_name = (row[4] or ""):trim6()
+	local teachernumber = row[9] or ""
+	local teacher_last = row[10]
 	
   if check_teacher(teachernumber) and check_course(course_number) and check_school(schoolid) then
-		local section_number = row[3]
-  	local course_name = (row[5] or ""):trim6()
+		local class_abbr = row[5]
+		local section_number = row[6]
 		local term = row[7]
-		local teacher_last = row[8]
-		local class_id    = "C" .. schoolid .. "-" .. course_number .. "-" .. teachernumber
-		local course_term = "C" .. course_number
-		local class_teacher_name = course_name .. "-" .. teacher_last
-		local class_bare_name    = course_name
-		if not full_year(term) then
-		 	class_id    = class_id .. "-" .. term
-			course_term = course_term .. "-" .. term
-			class_teacher_name = class_teacher_name .. "-" .. term
-			class_bare_name    = class_bare_name .. "-" .. term
-		end
+		local class_id = make_class_id(class_abbr, teacher_last, term, course_name, course_number)
 		if check_class(class_id) then
+			local course_term = class_abbr
+			local class_teacher_name = course_name .. "-" .. teacher_last
+			local class_bare_name    = course_name
+			if not full_year(term) then
+				course_term = course_term .. "-" .. term
+				class_teacher_name = class_teacher_name .. "-" .. term
+				class_bare_name    = class_bare_name .. "-" .. term
+			end
 			if not class_table[class_id] then
 				assigned_teachers[teachernumber] = true
 				class_table[class_id] = { class_bare_name, class_teacher_name, "T" .. teachernumber, schoolid }
@@ -378,6 +403,8 @@ function writeclassrow(row, fname, lno)
 			end
 			course_terms[course_term][class_id] = true
 		end
+	else
+  	if verboseFlag > 0 then io.stderr:write("rejecting class " .. course_name .. " (" .. course_number .. ") " .. teacher_last .. "\n") end
 	end
 end
 
@@ -416,7 +443,7 @@ end
 
 -- convert powerschool autosend files to csv format required by Edline
 function create_csv_file(psFile, csvFile, mode, rowfn, sumfn)
-  local o = assert(io.open(uploadDir..csvFile, mode))
+  local o = assert(io.open(edlineDir..csvFile, mode))
   io.output(o)
   readtab(psFile, false, rowfn, sumfn)
   o:close()
@@ -425,11 +452,11 @@ end
 -- begin main script
 
 -- must run students first (to get enroll_status)!
-create_csv_file("ps-students.txt",        "edline-student.csv",  'wb', writestudentrow, nil)
+create_csv_file("ps-students.txt",        "student.csv",  'wb', writestudentrow, nil)
 -- must run rosters before sections!
-create_csv_file("ps-rosters-bacich.txt",  "edline-schedule.csv", 'wb', writeschedulerow, nil)
-create_csv_file("ps-rosters-kent.txt",    "edline-schedule.csv", 'ab', writeschedulerow, nil)
+create_csv_file("ps-rosters-bacich.txt",  "schedule.csv", 'wb', writeschedulerow, nil)
+create_csv_file("ps-rosters-kent.txt",    "schedule.csv", 'ab', writeschedulerow, nil)
 -- must run sections before staff!
-create_csv_file("ps-sections-bacich.txt", "edline-class.csv",    'wb', writeclassrow, nil)
-create_csv_file("ps-sections-kent.txt",   "edline-class.csv",    'ab', writeclassrow, writeclasses)
-create_csv_file("ps-staff.txt",           "edline-teacher.csv",  'wb', writestaffrow, nil)
+create_csv_file("ps-sections-bacich.txt", "class.csv",    'wb', writeclassrow, nil)
+create_csv_file("ps-sections-kent.txt",   "class.csv",    'ab', writeclassrow, writeclasses)
+create_csv_file("ps-staff.txt",           "teacher.csv",  'wb', writestaffrow, nil)
