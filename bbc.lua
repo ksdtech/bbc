@@ -752,5 +752,5 @@ create_csv_file("ps-staff.txt", "staff.csv", staffHeaders, writestaffrow, nil)
 create_csv_file("ps-students.txt", "students.csv", studentHeaders, writestudentrow, nil)
 
 -- upload converted files to BBC
--- process_file("Staff", "staff.csv", "staff_output.txt")
--- process_file("Student", "students.csv", "student_output.txt")
+process_file("Staff", "staff.csv", "staff_output.txt")
+process_file("Student", "students.csv", "student_output.txt")
