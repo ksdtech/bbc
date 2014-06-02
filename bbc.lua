@@ -84,7 +84,6 @@ CA_ELAStatus
 Reg_Will_Attend
 Reg_Grade_Level
 ExitCode
-ExitComment
 Form3_Updated_At
 Form4_Updated_At
 Form6_Updated_At
@@ -418,7 +417,7 @@ function writestudentrow(row, fname, lno, group)
         local pages_completed = 0
         local pages_required = 0
 				-- check forms 3, 4, 6, 9 and 10 only for now
-        for k = 48,52 do
+        for k = 47,51 do
           local date = row[k] or "0000-00-00"
           date = string.sub(date, 1, 10)
            pages_required = pages_required + 1
@@ -753,5 +752,5 @@ create_csv_file("ps-staff.txt", "staff.csv", staffHeaders, writestaffrow, nil)
 create_csv_file("ps-students.txt", "students.csv", studentHeaders, writestudentrow, nil)
 
 -- upload converted files to BBC
--- process_file("Staff", "staff.csv", "staff_output.txt")
--- process_file("Student", "students.csv", "student_output.txt")
+process_file("Staff", "staff.csv", "staff_output.txt")
+process_file("Student", "students.csv", "student_output.txt")
