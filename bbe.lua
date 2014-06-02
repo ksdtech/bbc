@@ -7,6 +7,14 @@ require 'app_config'
 debugFlag = 1
 verboseFlag = 1
 
+
+
+
+
+
+
+
+
 -- bbc-students AutoSend fields
 -- tab field delimiter, lf line delimiter, no headers
 autosend_student_fields = [[
@@ -54,20 +62,16 @@ EntryCode
 Lang_Adults_Primary
 CA_ELAStatus
 Reg_Will_Attend
-Form2_Updated_At
+Reg_Grade_Level
+ExitCode
 Form3_Updated_At
 Form4_Updated_At
-Form5_Updated_At
 Form6_Updated_At
-Form7_Updated_At
-Form8_Updated_At
 Form9_Updated_At
 Form10_Updated_At
-Form11_Updated_At
-Form12_Updated_At
-Form13_Updated_At
-Form14_Updated_At
-Reg_Grade_Level
+Form15_Updated_At
+Form1_Updated_At
+Form16_Updated_At
 ]]
 
 -- bbc-staff AutoSend fields
