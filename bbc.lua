@@ -5,16 +5,19 @@ require 'table_print'
 require 'app_config'
 
 -- start of valid reg form updates
-regFormStartDate = "2013-03-27"
+regFormStartDate = "2014-04-01"
 
 -- allow pre-reg groups
 preRegGroups = 0
+
+-- input file is only pre-regs
+allPreRegs = 0
 
 -- allow online reg status groups
 -- 0 - do not add these groups
 -- 1 - check pre-regs (before EOY)
 -- 2 - check active (after EOY)
-regStatusGroups = 2
+regStatusGroups = 1
 
 -- algorithm to select PrimaryPhone and AdditionalPhone, as available
 staff_phone_prefs   = { 'cell', 'home_phone' }
@@ -28,6 +31,9 @@ headerFile    = 'headers.txt'
 libcurlFile   = 'curl.c'
 traceFile     = 'trace.txt'
 libcurlLoaded = false
+
+
+
 
 -- bbc-students AutoSend fields
 -- tab field delimiter, lf line delimiter, no headers
@@ -76,19 +82,17 @@ EntryCode
 Lang_Adults_Primary
 CA_ELAStatus
 Reg_Will_Attend
-Form2_Updated_At
+Reg_Grade_Level
+ExitCode
+ExitComment
 Form3_Updated_At
 Form4_Updated_At
-Form5_Updated_At
 Form6_Updated_At
-Form7_Updated_At
-Form8_Updated_At
 Form9_Updated_At
 Form10_Updated_At
-Form11_Updated_At
-Form12_Updated_At
-Form13_Updated_At
-Form14_Updated_At
+Form15_Updated_At
+Form1_Updated_At
+Form16_Updated_At
 ]]
 
 -- bbc-staff AutoSend fields
@@ -132,6 +136,18 @@ studentHeaders = { 'ReferenceCode', 'FirstName', 'LastName',
   'EmailAddress', 'EmailAddressAlt', 'Institution', 
   'RefreshGroup', 'RefreshGroup', 'RefreshGroup',
   'RefreshGroup', 'RefreshGroup', 'RefreshGroup' }
+
+-- headers for students file
+-- 6 groups
+studentNoRefreshHeaders = { 'ReferenceCode', 'FirstName', 'LastName',
+  'Grade', 'Language', 'Gender',
+  'HomePhone', 'WorkPhone', 'MobilePhone',
+  'HomePhoneAlt', 'WorkPhoneAlt', 'MobilePhoneAlt',
+  'SMSPhone', 'SMSPhone2',
+  'PrimaryPhone', 'AdditionalPhone',
+  'EmailAddress', 'EmailAddressAlt', 'Institution', 
+  'Group', 'Group', 'Group',
+  'Group', 'Group', 'Group' }
 
 -- headers to send for file upload
 -- copied from WinHttp.WinHttpRequest component defaults
@@ -356,6 +372,7 @@ function writestudentrow(row, fname, lno, group)
   -- if lang_adults_primary == "01" then language = 'Spanish' end
   local ela_status = row[43] or "EO"
   local will_attend = row[44] or ""
+  local reg_grade_level = row[45] or ""
   
   if group then table.insert(groups, group) end
   if ela_status == "EL" then
@@ -367,14 +384,17 @@ function writestudentrow(row, fname, lno, group)
     table.insert(groups, "Graduates")
   end
   if schoolid == "103" or schoolid == "104" then
-    if enroll_status < 0 or string.find(entrycode, "[NR]D") then 
+    if not allPreRegs and (enroll_status < 0 or string.find(entrycode, "[NR]D")) then 
       table.insert(groups, "New Students")
     end
-    if preRegGroups > 0 and enroll_status < 0 then
-      if grade_level == 0 then
+    if preRegGroups > 0 and (allPreRegs or enroll_status < 0) then
+      if reg_grade_level == "TK" then
+        schoolid = "103"
+        table.insert(groups, "Pre-Registered TK")
+      elseif reg_grade_level == "K" then
         schoolid = "103"
         table.insert(groups, "Pre-Registered K")
-      elseif grade_level <= 4 then
+      elseif (0 + reg_grade_level) <= 4 then
         schoolid = "103"
         table.insert(groups, "Pre-Registered 1-4")
       else
@@ -397,17 +417,15 @@ function writestudentrow(row, fname, lno, group)
         -- blank (unknown) or returning
         local pages_completed = 0
         local pages_required = 0
-        for k = 2,14 do
-          local date = row[43+k] or "0000-00-00"
+				-- check forms 3, 4, 6, 9 and 10 only for now
+        for k = 48,52 do
+          local date = row[k] or "0000-00-00"
           date = string.sub(date, 1, 10)
-          -- give 'em a pass for PTA, kik and SRS forms
-          if k < 11 or k > 13 then
-            pages_required = pages_required + 1
-            -- WARNING: hard coded date!
-            if date >= regFormStartDate then 
-              pages_completed = pages_completed + 1 
-            end
-          end
+           pages_required = pages_required + 1
+           -- WARNING: hard coded date!
+           if date >= regFormStartDate then 
+             pages_completed = pages_completed + 1 
+           end
         end
         if pages_completed == 0 then
           table.insert(groups, "Registration Not Started")
@@ -723,7 +741,7 @@ end
 -- begin main script
 
 -- convert pre-reg students
--- create_csv_file("preregs.txt", "preregs.csv", studentHeaders, writestudentrow, nil)
+-- create_csv_file("prereg-1415.txt", "preregs.csv", studentNoRefreshHeaders, writestudentrow, nil)
 -- process_file("Other", "preregs.csv", "preregs_output.txt")
 
 -- convert graduating students
@@ -735,5 +753,5 @@ create_csv_file("ps-staff.txt", "staff.csv", staffHeaders, writestaffrow, nil)
 create_csv_file("ps-students.txt", "students.csv", studentHeaders, writestudentrow, nil)
 
 -- upload converted files to BBC
-process_file("Staff", "staff.csv", "staff_output.txt")
-process_file("Student", "students.csv", "student_output.txt")
+-- process_file("Staff", "staff.csv", "staff_output.txt")
+-- process_file("Student", "students.csv", "student_output.txt")
