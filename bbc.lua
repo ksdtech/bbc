@@ -17,7 +17,7 @@ allPreRegs = 0
 -- 0 - do not add these groups
 -- 1 - check pre-regs (before EOY)
 -- 2 - check active (after EOY)
-regStatusGroups = 1
+regStatusGroups = 2
 
 -- algorithm to select PrimaryPhone and AdditionalPhone, as available
 staff_phone_prefs   = { 'cell', 'home_phone' }
@@ -383,7 +383,9 @@ function writestudentrow(row, fname, lno, group)
     table.insert(groups, "Graduates")
   end
   if schoolid == "103" or schoolid == "104" then
-    if not allPreRegs and (enroll_status < 0 or string.find(entrycode, "[NR]D")) then 
+    local is_new = not not string.find(entrycode, "[NR]D") 
+    if (allPreRegs == 0) and (is_new or enroll_status < 0) then 
+      -- io.stderr:write(string.format("%s is in school %s, enroll_status is %s, entrycode is %s, is_new is %s\n", student_number, schoolid, enroll_status, entrycode, tostring(is_new)))
       table.insert(groups, "New Students")
     end
     if preRegGroups > 0 and (allPreRegs or enroll_status < 0) then
