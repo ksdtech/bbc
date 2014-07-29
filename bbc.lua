@@ -13,11 +13,17 @@ preRegGroups = 0
 -- input file is only pre-regs
 allPreRegs = 0
 
+-- input file is only graduates
+allGraduates = 0
+
 -- allow online reg status groups
 -- 0 - do not add these groups
 -- 1 - check pre-regs (before EOY)
 -- 2 - check active (after EOY)
 regStatusGroups = 2
+if allGraduates then
+  regStatusGroups = 0
+end
 
 -- algorithm to select PrimaryPhone and AdditionalPhone, as available
 staff_phone_prefs   = { 'cell', 'home_phone' }
@@ -379,7 +385,7 @@ function writestudentrow(row, fname, lno, group)
   end
   if schoolid == "999999" then 
     schoolid = "104"
-    grade_level = 8
+    grade_level = 9
     table.insert(groups, "Graduates")
   end
   if schoolid == "103" or schoolid == "104" then
@@ -746,8 +752,8 @@ end
 -- process_file("Other", "preregs.csv", "preregs_output.txt")
 
 -- convert graduating students
--- create_csv_file("graduating.txt", "graduating.csv", studentHeaders, writestudentrow, "Graduated 2013")
--- process_file("Other", "graduating.csv", "graduating_output.txt")
+-- create_csv_file("graduated2014.txt", "graduated2014.csv", studentNoRefreshHeaders, writestudentrow, "Graduated 2014")
+-- process_file("Other", "graduated2014.csv", "graduated2014_output.txt")
 
 -- convert powerschool autosend files to BBC csv format
 create_csv_file("ps-staff.txt", "staff.csv", staffHeaders, writestaffrow, nil)
