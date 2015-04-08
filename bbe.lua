@@ -1,19 +1,14 @@
 -- bbe.lua
--- generate 4 csv files nightly and for upload to Blackboard Engage
+-- generate 4 csv files nightly and for upload to Edline (Blackboard Engage)
+-- uses Lua-cURL module
+-- see https://github.com/Lua-cURL/Lua-cURLv3
+-- install with luarocks install Lua-cURL
 
 require 'table_print'
 require 'app_config'
 
 debugFlag = 1
 verboseFlag = 1
-
-
-
-
-
-
-
-
 
 -- bbc-students AutoSend fields
 -- tab field delimiter, lf line delimiter, no headers
@@ -44,14 +39,14 @@ Network_Id
 Network_Password
 Web_Id
 Web_Password
-Home_Id
+Family_Ident
 Mother_Staff_Id
 Mother_First
 Mother
 Father_Staff_Id
 Father_First
 Father
-Home2_Id
+Student_Web_Id
 Mother2_Staff_Id
 Mother2_First
 Mother2_Last

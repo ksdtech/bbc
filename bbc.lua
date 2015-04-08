@@ -1,27 +1,32 @@
 -- bbc.lua
 -- generate students.csv and staff.csv nightly and upload them to Blackboard Connect
+-- see https://github.com/Lua-cURL/Lua-cURLv3
+-- install with luarocks install Lua-cURL
 
-require 'table_print'
-require 'app_config'
+require('table_print')
+require('app_config')
 
 -- start of valid reg form updates
 regFormStartDate = "2014-04-01"
 
--- allow pre-reg groups
-preRegGroups = 0
-
 -- input file is only pre-regs
-allPreRegs = 0
+allPreRegs = 1
 
 -- input file is only graduates
 allGraduates = 0
+
+-- allow pre-reg groups
+preRegGroups = 0
+if allPreRegs > 0 then
+  preRegGroups = 1
+end
 
 -- allow online reg status groups
 -- 0 - do not add these groups
 -- 1 - check pre-regs (before EOY)
 -- 2 - check active (after EOY)
-regStatusGroups = 2
-if allGraduates then
+regStatusGroups = 1
+if allPreRegs > 0 or allGraduates > 0 then
   regStatusGroups = 0
 end
 
@@ -36,7 +41,7 @@ cookieFile    = 'cookies.txt'
 headerFile    = 'headers.txt'
 libcurlFile   = 'curl.c'
 traceFile     = 'trace.txt'
-libcurlLoaded = false
+-- libcurlLoaded = false
 
 
 
@@ -70,14 +75,14 @@ Network_Id
 Network_Password
 Web_Id
 Web_Password
-Home_Id
+Family_Ident
 Mother_Staff_Id
 Mother_First
 Mother
 Father_Staff_Id
 Father_First
 Father
-Home2_Id
+Student_Web_Id
 Mother2_Staff_Id
 Mother2_First
 Mother2_Last
@@ -401,12 +406,16 @@ function writestudentrow(row, fname, lno, group)
       elseif reg_grade_level == "K" then
         schoolid = "103"
         table.insert(groups, "Pre-Registered K")
-      elseif (0 + reg_grade_level) <= 4 then
-        schoolid = "103"
-        table.insert(groups, "Pre-Registered 1-4")
       else
-        schoolid = "104"
-        table.insert(groups, "Pre-Registered 5-8")
+        local reg_grade_number = tonumber(reg_grade_level)
+        assert(reg_grade_number and reg_grade_number > 0, "reg_grade_level '" .. reg_grade_level .. "' should be TK, K, or positive number")
+        if reg_grade_number <= 4 then
+          schoolid = "103"
+          table.insert(groups, "Pre-Registered 1-4")
+        else
+          schoolid = "104"
+          table.insert(groups, "Pre-Registered 5-8")
+        end
       end
     end
     if regStatusGroups > 0 then
@@ -655,19 +664,18 @@ end
 
 -- contactType: "Student" or "Staff"
 -- preserveData: true to remove records that aren't uploaded
-function upload_file_via_lua_curl(uploadFile, contactType, preserveData)
-  if not libcurlLoaded then
-    require("cURL")
-    libcurlLoaded = true
-  end
 
+
+function upload_file_via_lua_curl(uploadFile, contactType, preserveData)
+  local cURL = require('cURL')
+  
   local postdata = {
     fNTIUser = strUserName,
     fNTIPass = strUserPass,
     fContactType = contactType,
     fRefreshType = contactType,
-    fPreserveData = preserveData and 1 or 0,
-    fSubmit = 1,
+    fPreserveData = to_string(preserveData and 1 or 0),
+    fSubmit = "1",
     fFile = { file = uploadDir..uploadFile, type = "text/plain" }
   }
   
@@ -700,6 +708,7 @@ function upload_file_via_lua_curl(uploadFile, contactType, preserveData)
     d:write(table.concat(response_body, "\n"))
     assert(d:close())
   end
+  c:close()
 
   return resp,response_body
 end
@@ -747,18 +756,24 @@ end
 
 -- begin main script
 
--- convert pre-reg students
--- create_csv_file("prereg-1415.txt", "preregs.csv", studentNoRefreshHeaders, writestudentrow, nil)
--- process_file("Other", "preregs.csv", "preregs_output.txt")
+if allPreRegs > 0 then
+  -- convert pre-reg students
+  create_csv_file("prereg-1516.txt", "preregs.csv", studentNoRefreshHeaders, writestudentrow, nil)
+  -- process_file("Other", "preregs.csv", "preregs_output.txt")
+end
 
--- convert graduating students
--- create_csv_file("graduated2014.txt", "graduated2014.csv", studentNoRefreshHeaders, writestudentrow, "Graduated 2014")
--- process_file("Other", "graduated2014.csv", "graduated2014_output.txt")
+if allGraduates > 0 then
+  -- convert graduating students
+  create_csv_file("graduated-15.txt", "graduated2014.csv", studentNoRefreshHeaders, writestudentrow, "Graduated 2014")
+  -- process_file("Other", "graduated-15.csv", "graduated-15_output.txt")
+end
 
--- convert powerschool autosend files to BBC csv format
-create_csv_file("ps-staff.txt", "staff.csv", staffHeaders, writestaffrow, nil)
-create_csv_file("ps-students.txt", "students.csv", studentHeaders, writestudentrow, nil)
+if allPreRegs == 0 and allGraduates == 0 then
+  -- convert powerschool autosend files to BBC csv format
+  create_csv_file("ps-staff.txt", "staff.csv", staffHeaders, writestaffrow, nil)
+  create_csv_file("ps-students.txt", "students.csv", studentHeaders, writestudentrow, nil)
 
--- upload converted files to BBC
-process_file("Staff", "staff.csv", "staff_output.txt")
-process_file("Student", "students.csv", "student_output.txt")
+  -- upload converted files to BBC
+  process_file("Staff", "staff.csv", "staff_output.txt")
+  process_file("Student", "students.csv", "student_output.txt")
+end
