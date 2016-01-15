@@ -7,10 +7,10 @@ require('table_print')
 require('app_config')
 
 -- start of valid reg form updates
-regFormStartDate = "2014-04-01"
+regFormStartDate = "2015-04-01"
 
 -- input file is only pre-regs
-allPreRegs = 1
+allPreRegs = 0
 
 -- input file is only graduates
 allGraduates = 0
@@ -25,7 +25,7 @@ end
 -- 0 - do not add these groups
 -- 1 - check pre-regs (before EOY)
 -- 2 - check active (after EOY)
-regStatusGroups = 1
+regStatusGroups = 2
 if allPreRegs > 0 or allGraduates > 0 then
   regStatusGroups = 0
 end
@@ -764,7 +764,7 @@ end
 
 if allGraduates > 0 then
   -- convert graduating students
-  create_csv_file("graduated-15.txt", "graduated2014.csv", studentNoRefreshHeaders, writestudentrow, "Graduated 2014")
+  create_csv_file("graduated-2015.txt", "graduated-2015.csv", studentNoRefreshHeaders, writestudentrow, "Graduated 2015")
   -- process_file("Other", "graduated-15.csv", "graduated-15_output.txt")
 end
 
@@ -774,6 +774,6 @@ if allPreRegs == 0 and allGraduates == 0 then
   create_csv_file("ps-students.txt", "students.csv", studentHeaders, writestudentrow, nil)
 
   -- upload converted files to BBC
-  process_file("Staff", "staff.csv", "staff_output.txt")
-  process_file("Student", "students.csv", "student_output.txt")
+  -- process_file("Staff", "staff.csv", "staff_output.txt")
+  -- process_file("Student", "students.csv", "student_output.txt")
 end
