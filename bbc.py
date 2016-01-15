@@ -3,13 +3,16 @@
 
 import csv
 import os.path
+import pycurl
+import re
+from StringIO import StringIO
 import sys
 import traceback
 
 # Application settings (passwords, etd, not in git repository)
 from app_config import (
-  regFormStartDate, verboseFlag, sourceDir, uploadDir, edlineDir,
-  strUserName, strUserPass, destURL, mailfrom, mailto, smtphost, smtpport)
+  regFormStartDate, verboseFlag, sourceDir, uploadDir,
+  strUserName, strUserPass, destURL)
 
 # Global settings (TODO: put these in command line arguments)
 # input file is only pre-regs
@@ -128,7 +131,7 @@ staff_nfields = len(autosend_staff_fields)
 # headers for staff file
 # 6 groups
 staffHeaders = [s.strip() for s in '''
-'ReferenceCode
+ReferenceCode
 FirstName
 LastName
 HomePhone
@@ -464,7 +467,121 @@ def create_csv_file(psFile, csvFile, headers, rowfn, group):
     out.writerow(headers)
     readtab(psFile, False, rowfn, out, group)
 
-# begin main script
+# used with curl command
+cookieFile    = 'cookies.txt'
+headerFile    = 'headers.txt'
+libcurlFile   = 'curl.c'
+traceFile     = 'trace.txt'
+# libcurlLoaded = false
+
+# headers to send for file upload
+# copied from WinHttp.WinHttpRequest component defaults
+# Connection: Keep-Alive is the key header!
+# Expect: removes the Expext: 100-continue header
+httpHeaders = [
+  'Accept: */*',
+  'User-Agent: Mozilla/4.0 (compatible; Win32; WinHttp.WinHttpRequest.5)',
+  'Version: HTTP/1.1',
+  'Connection: Keep-Alive',
+  'Expect:'
+]
+
+# Destroy previous cookies
+def clear_cookie_file():
+  with open(os.path.join(uploadDir, cookieFile), 'wb') as c:
+    c.write('# Netscape HTTP Cookie File\n')
+
+# contactType: 'Student' or 'Staff'
+# preserveData: true to remove records that aren't uploaded
+def upload_file(uploadFile, contactType, preserveData):
+  clear_cookie_file()
+  
+  resp_headers = StringIO()
+  resp_body = StringIO()
+
+  c = pycurl.Curl()
+  c.setopt(c.HTTPHEADER, httpHeaders)
+  c.setopt(c.COOKIEJAR, os.path.join(uploadDir, cookieFile))
+  c.setopt(c.COOKIEFILE, os.path.join(uploadDir, cookieFile))
+  c.setopt(c.FOLLOWLOCATION, True)
+  # c.setopt(autoreferer, True1)
+  # need a post301 / post302 flag?
+
+  postdata = [
+    ('fNTIUser',      strUserName),
+    ('fNTIPass',      strUserPass),
+    ('fContactType',  contactType),
+    ('fRefreshType',  contactType),
+    ('fPreserveData', '1' if preserveData else '0'),
+    ('fSubmit',       '1'),
+    ('fFile', (
+      c.FORM_FILE,        os.path.join(uploadDir, uploadFile),
+      c.FORM_CONTENTTYPE, 'text/plain'
+    ))
+  ]
+
+  # Sets request method to POST and data to list of tuples
+  c.setopt(c.HTTPPOST, postdata)
+  c.setopt(c.HEADERFUNCTION, resp_headers.write)
+  c.setopt(c.WRITEFUNCTION, resp_body.write)
+  c.setopt(c.URL, destURL)
+
+  if verboseFlag > 0:
+    sys.stderr.write('Posting to %s with data:\n%s\n' % (destURL, postdata))
+
+  result = c.perform()
+  code = c.getinfo(c.HTTP_CODE)
+  resp = resp_body.getvalue()
+  if verboseFlag > 0:
+    sys.stderr.write('%s\n' % resp)
+  responseFile = re.sub(r'[.].*$', '-response.html', uploadFile)
+  with open(os.path.join(uploadDir, responseFile), 'wb') as io:
+    io.write('%s' % resp)
+  return (code, resp, result)
+
+# process a staff or student job
+# should mimic vbs script actions
+def process_file(contactType, uploadFile, outputFile):
+  if verboseFlag > 0:
+    sys.stderr.write('Reading input file\n')
+
+  slen = 0
+  try:
+    with open(os.path.join(uploadDir, uploadFile), 'rb') as io:
+      c = io.read(100)
+      if c is not None:
+        slen = len(c)
+  except:
+    pass
+
+  strResults = ''
+  if slen == 0:
+    strResults = 'Input file has no data.\n'
+  else:
+    try:
+      code, resp, result = upload_file(uploadFile, contactType, True)
+      if code == 200:
+        strResults = 'Completed without errors'
+      else:
+        strResults = 'Status returned was %d' % code
+
+      if resp:
+        strResults += ('.\nResponse message:\n%s\n' % resp)
+      else:
+        strResults += ', with no response message.\n'
+    except pycurl.error as e:
+      strResults = 'Post failed with error: %s\n' % e
+
+  if verboseFlag > 0:
+    sys.stderr.write(strResults)
+
+  with open(os.path.join(uploadDir, outputFile), 'w') as io:
+    io.write(strResults)
+
+  if verboseFlag > 0:
+    sys.stderr.write('Job complete\n')
+
+# Begin main script
 def main():
   if allPreRegs:
     # convert pre-reg students
@@ -473,7 +590,7 @@ def main():
 
 
   if allGraduates:
-    # convert graduating students
+    # Convert graduating students
     create_csv_file('graduated-2015.txt', 'graduated-2015.csv', studentNoRefreshHeaders, writestudentrow, 'Graduated 2015')
     # process_file('Other', 'graduated-15.csv', 'graduated-15_output.txt')
 
@@ -481,11 +598,11 @@ def main():
   if not allPreRegs and not allGraduates:
     # convert powerschool autosend files to BBC csv format
     create_csv_file('ps-staff.txt', 'staff.csv', staffHeaders, writestaffrow, None)
-    # create_csv_file('ps-students.txt', 'students.csv', studentHeaders, writestudentrow, None)
+    create_csv_file('ps-students.txt', 'students.csv', studentHeaders, writestudentrow, None)
 
-    # upload converted files to BBC
-    # process_file('Staff', 'staff.csv', 'staff_output.txt')
-    # process_file('Student', 'students.csv', 'student_output.txt')
+    # Upload converted files to BBC
+    process_file('Staff', 'staff.csv', 'staff_output.txt')
+    process_file('Student', 'students.csv', 'student_output.txt')
 
 
 if __name__ == '__main__':
