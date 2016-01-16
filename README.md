@@ -4,7 +4,7 @@ Converts data from PowerSchool export to Blackboard Connect contacts import file
 
 bbc.py (Python 2.7 version)
 ===========================
-Requires pycurl package
+Requires pycurl and certifi packages to handle HTTPS uploads.
 
 Todo (Python)
 -------------

@@ -1,6 +1,7 @@
 # bbc.py
 # generate students.csv and staff.csv nightly and upload them to Blackboard Connect
 
+import certifi
 import csv
 import os.path
 import pycurl
@@ -504,6 +505,8 @@ def upload_file(uploadFile, contactType, preserveData):
   c.setopt(c.COOKIEJAR, os.path.join(uploadDir, cookieFile))
   c.setopt(c.COOKIEFILE, os.path.join(uploadDir, cookieFile))
   c.setopt(c.FOLLOWLOCATION, True)
+  # Use certifi package to provide SSL CA chain
+  c.setopt(c.CAINFO , certifi.where());
   # c.setopt(autoreferer, True1)
   # need a post301 / post302 flag?
 
