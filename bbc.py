@@ -20,7 +20,7 @@ from app_config import (
 allPreRegs = False
 
 # input file is only graduates
-allGraduates = True
+allGraduates = False
 
 # allow pre-reg groups
 preRegGroups = False
