@@ -20,7 +20,7 @@ from app_config import (
 allPreRegs = False
 
 # input file is only graduates
-allGraduates = False
+allGraduates = True
 
 # allow pre-reg groups
 preRegGroups = False
@@ -105,6 +105,7 @@ Form10_Updated_At
 Form15_Updated_At
 Form1_Updated_At
 Form16_Updated_At
+TK_Current_Year
 '''.split('\n')[1:-1]]
 student_nfields = len(autosend_student_fields)
 
@@ -230,6 +231,7 @@ def get_outreach_phones(phones, prefs):
 def writestaffrow(out, row, fname, lno, group):
   if len(row) < staff_nfields:
     sys.stderr.write('%s line %d - row not parsed?\n' % (fname, lno))
+    sys.stderr.write('%d staff fields, %d fields in row\n' % (staff_nfields, len(row)))
     sys.stderr.write('%s\n' % row)
     return
 
@@ -298,6 +300,7 @@ def writestaffrow(out, row, fname, lno, group):
 def writestudentrow(out, row, fname, lno, group):
   if len(row) < student_nfields:
     sys.stderr.write('%s line %d - row not parsed?\n' % (fname, lno))
+    sys.stderr.write('%d student fields, %d fields in row\n' % (student_nfields, len(row)))
     sys.stderr.write('%s\n' % row)
     return
 
@@ -308,6 +311,12 @@ def writestudentrow(out, row, fname, lno, group):
   first_name      = row[1]
   last_name       = row[2]
   grade_level     = int(row[3])
+  is_tk           = row[54]
+  if grade_level == 0:
+    if is_tk:
+      grade_level = 'TK'
+    else:
+      grade_level = 'RK'
   gender          = row[4].upper()
   teacher         = row[5]
   schoolid        = row[6]
@@ -334,6 +343,8 @@ def writestudentrow(out, row, fname, lno, group):
   
   if group:
     groups.append(group)
+  if is_tk:
+    groups.append('Transitional Kindergarten')
   if ela_status == 'EL':
     groups.append('ELAC')
 
@@ -353,7 +364,12 @@ def writestudentrow(out, row, fname, lno, group):
         groups.append('Pre-Registered 5-8')
       else:
         schoolid = '103'
-        groups.append('Pre-Registered 1-4')
+        if reg_grade_level == 'TK':
+          groups.append('Pre-Registered TK')
+        elif reg_grade_level == 'K':
+          groups.append('Pre-Registered K')
+        else:
+          groups.append('Pre-Registered 1-4')
 
     if regStatusGroups > 0:
       attending = True
@@ -588,15 +604,13 @@ def process_file(contactType, uploadFile, outputFile):
 def main():
   if allPreRegs:
     # convert pre-reg students
-    create_csv_file('prereg-1516.txt', 'preregs.csv', studentNoRefreshHeaders, writestudentrow, None)
-    # process_file('Other', 'preregs.csv', 'preregs_output.txt')
-
+    create_csv_file('prereg-1617.txt', 'preregs.csv', studentNoRefreshHeaders, writestudentrow, None)
+    process_file('Other', 'preregs.csv', 'preregs_output.txt')
 
   if allGraduates:
     # Convert graduating students
-    create_csv_file('graduated-2015.txt', 'graduated-2015.csv', studentNoRefreshHeaders, writestudentrow, 'Graduated 2015')
-    # process_file('Other', 'graduated-15.csv', 'graduated-15_output.txt')
-
+    create_csv_file('graduated-2016.txt', 'graduated-2016.csv', studentNoRefreshHeaders, writestudentrow, 'Graduated 2016')
+    process_file('Other', 'graduated-2016.csv', 'graduated-2016_output.txt')
 
   if not allPreRegs and not allGraduates:
     # convert powerschool autosend files to BBC csv format
@@ -606,7 +620,6 @@ def main():
     # Upload converted files to BBC
     process_file('Staff', 'staff.csv', 'staff_output.txt')
     process_file('Student', 'students.csv', 'student_output.txt')
-
 
 if __name__ == '__main__':
   main()
