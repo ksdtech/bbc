@@ -37,7 +37,7 @@ if allPreRegs or allGraduates:
 
 # Algorithm to select PrimaryPhone and AdditionalPhone, as available
 staff_phone_prefs   = [ 'cell', 'home_phone' ]
-student_phone_prefs = [ 'mother_cell', 'father_cell', 'home_phone', 
+student_phone_prefs = [ 'mother_cell', 'father_cell', 'home_phone',
   'mother_work_phone', 'father_work_phone' ]
 student_sms_phone_prefs = [ 'mother_cell', 'father_cell' ]
 
@@ -106,6 +106,8 @@ Form15_Updated_At
 Form1_Updated_At
 Form16_Updated_At
 TK_Current_Year
+CA_PrimDisability
+CA_SpEd504
 '''.split('\n')[1:-1]]
 student_nfields = len(autosend_student_fields)
 
@@ -226,7 +228,7 @@ def get_outreach_phones(phones, prefs):
   return (primary_phone, additional_phone)
 
 
-# Convert one row of staff data. 
+# Convert one row of staff data.
 # WARNING: If you change AutoSend fields, you must change the logic in this function
 def writestaffrow(out, row, fname, lno, group):
   if len(row) < staff_nfields:
@@ -263,14 +265,14 @@ def writestaffrow(out, row, fname, lno, group):
     if len(groups) > 0:
 
       gender = row[6].upper()
-      
+
       # any staff not assigned to school goes into District Office code 102
       schoolid = row[7]
       if schoolid != '103' and schoolid != '104':
         schoolid = '102'
-      phones = { 
+      phones = {
         'home_phone': row[8],
-        'cell':       row[9] 
+        'cell':       row[9]
       }
       primary_phone, additional_phone = get_outreach_phones(phones, staff_phone_prefs)
       email_address = row[10]
@@ -285,14 +287,14 @@ def writestaffrow(out, row, fname, lno, group):
         phones['home_phone'], phones['cell'], phones['cell'],
         primary_phone, additional_phone,
         email_address, schoolid] + groups[:6])
-        
+
       if verboseFlag > 2:
         sys.stderr.write('row written\n')
     elif verboseFlag > 1:
       sys.stderr.write('%s %s %s: no staff groups\n' %
         (teachernumber, first_name, last_name))
   elif verboseFlag > 1:
-    sys.stderr.write('%s %s %s: not a current staff member\n' % 
+    sys.stderr.write('%s %s %s: not a current staff member\n' %
       (teachernumber, first_name, last_name))
 
 # convert row. if autosend fields are changed, you must change the logic
@@ -312,6 +314,8 @@ def writestudentrow(out, row, fname, lno, group):
   last_name       = row[2]
   grade_level     = int(row[3])
   is_tk           = row[54]
+  sped_disability = row[55]
+  is_504          = row[56]
   if grade_level == 0:
     if is_tk:
       grade_level = 'TK'
@@ -320,12 +324,12 @@ def writestudentrow(out, row, fname, lno, group):
   gender          = row[4].upper()
   teacher         = row[5]
   schoolid        = row[6]
-  phones = { 
+  phones = {
     'home_phone':        row[7],
     'mother_work_phone': row[8],
     'mother_cell':       row[9],
     'father_work_phone': row[10],
-    'father_cell':       row[11] 
+    'father_cell':       row[11]
   }
   primary_phone, additional_phone = get_outreach_phones(phones, student_phone_prefs)
   sms_phone, sms_phone_2 = get_outreach_phones(phones, student_sms_phone_prefs)
@@ -340,13 +344,17 @@ def writestudentrow(out, row, fname, lno, group):
   ela_status      = row[42] or 'EO'
   will_attend     = row[43]
   reg_grade_level = row[44]
-  
+
   if group:
     groups.append(group)
   if is_tk:
     groups.append('Transitional Kindergarten')
   if ela_status == 'EL':
     groups.append('ELAC')
+  if sped_disability != '':
+    groups.append('SPED')
+  elif is_504:
+    groups.append('504')
 
   if schoolid == '999999':
     schoolid = '104'
@@ -354,7 +362,7 @@ def writestudentrow(out, row, fname, lno, group):
     groups.append('Graduates')
 
   if schoolid == '103' or schoolid == '104':
-    is_new = 'ND' == entrycode or 'RD' == entrycode 
+    is_new = 'ND' == entrycode or 'RD' == entrycode
     if (not allPreRegs) and (is_new or enroll_status < 0):
       groups.append('New Students')
 
@@ -391,8 +399,7 @@ def writestudentrow(out, row, fname, lno, group):
           pages_required = pages_required + 1
           # WARNING: hard coded date!
           if date >= regFormStartDate:
-            pages_completed = pages_completed + 1 
-
+            pages_completed = pages_completed + 1
 
         if pages_completed == 0:
           groups.append('Registration Not Started')
@@ -407,15 +414,15 @@ def writestudentrow(out, row, fname, lno, group):
   # use cell, then home phone for Primary and Alternate
   # possible groups are Graduates, New Students, ELAC
   out.writerow([student_number, first_name, last_name, grade_level, language, gender,
-    phones['home_phone'], phones['mother_work_phone'], phones['mother_cell'], '', 
+    phones['home_phone'], phones['mother_work_phone'], phones['mother_cell'], '',
     phones['father_work_phone'], phones['father_cell'],
     sms_phone, sms_phone_2,
     primary_phone, additional_phone,
     mother_email, father_email, schoolid] + groups[:6])
-  
+
   if verboseFlag > 2:
     sys.stderr.write('row written\n')
-  
+
   phones2 = {
     'home_phone':        row[14],
     'mother_work_phone': row[15],
@@ -423,7 +430,7 @@ def writestudentrow(out, row, fname, lno, group):
     'father_work_phone': row[17],
     'father_cell':       row[18]
   }
-  
+
   if phones2['home_phone'] or phones2['mother_work_phone'] or phones2['mother_cell'] or phones2['father_work_phone'] or phones2['father_cell']:
     # for secondary family, reference code starts with 'NC'
     nc_reference = 'NC' + student_number
@@ -434,16 +441,16 @@ def writestudentrow(out, row, fname, lno, group):
 
     # output a row that matches studentHeaders fields for secondary family
     out.writerow([nc_reference, first_name, last_name, grade_level, language, gender,
-      phones2['home_phone'], phones2['mother_work_phone'], phones2['mother_cell'], '', 
+      phones2['home_phone'], phones2['mother_work_phone'], phones2['mother_cell'], '',
       phones2['father_work_phone'], phones2['father_cell'],
       sms_phone2, sms_phone2_2,
       primary_phone2, additional_phone2,
       mother2_email, father2_email, schoolid] + groups[:6])
-      
+
     if verboseFlag > 2:
       sys.stderr.write('NC row written\n')
 
-# Process a tab-delimited input file, calling rowfn on each row 
+# Process a tab-delimited input file, calling rowfn on each row
 # If headers are given, row ia a dict, otherwise row is a list
 def readtab(fname, headers, rowfn, out, group):
   with open(os.path.join(sourceDir, fname), 'rb') as io:
@@ -451,10 +458,10 @@ def readtab(fname, headers, rowfn, out, group):
     calling = None
     if headers:
       lno = 1
-      cin = csv.DictReader(io, fieldnames=headers, 
+      cin = csv.DictReader(io, fieldnames=headers,
         delimiter='\t', lineterminator='\n', quoting=csv.QUOTE_NONE)
     else:
-      cin = csv.reader(io, 
+      cin = csv.reader(io,
         delimiter='\t', lineterminator='\n', quoting=csv.QUOTE_NONE)
     for raw_row in cin:
       try:
@@ -479,7 +486,7 @@ def readtab(fname, headers, rowfn, out, group):
 def create_csv_file(psFile, csvFile, headers, rowfn, group):
   with open(os.path.join(uploadDir, csvFile), 'wb') as io:
     # write out with CRLF
-    out = csv.writer(io, 
+    out = csv.writer(io,
       delimiter=',', lineterminator='\r\n', quoting=csv.QUOTE_ALL)
     out.writerow(headers)
     readtab(psFile, False, rowfn, out, group)
@@ -512,7 +519,7 @@ def clear_cookie_file():
 # preserveData: true to remove records that aren't uploaded
 def upload_file(uploadFile, contactType, preserveData):
   clear_cookie_file()
-  
+
   resp_headers = StringIO()
   resp_body = StringIO()
 
@@ -623,4 +630,3 @@ def main():
 
 if __name__ == '__main__':
   main()
-
