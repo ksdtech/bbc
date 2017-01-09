@@ -247,16 +247,31 @@ def writestaffrow(out, row, fname, lno, group):
 
   if status == 1 and title != 'v-staff':
     groups = [ ]
-    # staffstatus 0 is 'unassigned'
+
     if group:
       groups.append(group)
-    if staffstatus == 1:
+
+    # Add to groups by staffstatus field:
+    # staffstatus 1 is certificated, teacher
+    # staffstatus 5 is certificated, non-teacher
+    if staffstatus == 1 or staffstatus == 5:
       groups.append('Certificated')
+    # staffstatus 2 is classified
     elif staffstatus == 2:
       groups.append('Classified')
-    # staffstatus 3 is 'lunch staff'
-    # staffstatus 4 is 'substitute'
+    # staffstatus 6 is contracted staff
+    # staffstatus 7 is intern
+    elif staffstatus == 6 or staffstatus == 7:
+      groups.append('Temporary')
 
+    # Not put in groups:
+    # staffstatus 0 is unassigned
+    # staffstatus 3 is lunch staff
+    # staffstatus 4 is substitute
+    # staffstatus 8 is volunteer
+    # staffstatus 9 is trustee
+
+    # Also put in groups by group membership
     group_membership = row[14].lower()
     if 'administrators' in group_membership:
       groups.append('Administrators')

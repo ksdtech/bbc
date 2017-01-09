@@ -1,2 +1,6 @@
-uploads/*
+uploads/
 app_config.*
+.DS_Store
+*.pyc
+output/
+source/
