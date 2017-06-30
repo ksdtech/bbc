@@ -321,21 +321,18 @@ def writestudentrow(out, row, fname, lno, group):
     sys.stderr.write('%s\n' % row)
     return
 
+  entrycode       = row[40]
+  if 'NS' == entrycode or 'NR' == entrycode:
+      return
+
   # student fields
   language        = 'English'
   groups          = [ ]
   student_number  = row[0]
   first_name      = row[1]
   last_name       = row[2]
-  grade_level     = int(row[3])
-  is_tk           = row[54]
   sped_disability = row[55]
   is_504          = row[56]
-  if grade_level == 0:
-    if is_tk:
-      grade_level = 'TK'
-    else:
-      grade_level = 'RK'
   gender          = row[4].upper()
   teacher         = row[5]
   schoolid        = row[6]
@@ -351,14 +348,24 @@ def writestudentrow(out, row, fname, lno, group):
   mother_email    = row[12]
   father_email    = row[13]
   enroll_status   = int(row[21])
-  entrycode       = row[40]
 
   # TODO: add support for Spanish
   # lang_adults_primary = row[42-1] or '00'
   # if lang_adults_primary == '01' then language = 'Spanish' end
   ela_status      = row[42] or 'EO'
   will_attend     = row[43]
+
+  # complicated grade level settings
+  grade_level     = row[3]
   reg_grade_level = row[44]
+  is_tk           = row[54]
+  if allPreRegs or (enroll_status < 0):
+    is_tk = (reg_grade_level == 'TK')
+  if int(grade_level) == 0:
+    if is_tk:
+      grade_level = 'TK'
+    else:
+      grade_level = 'RK'
 
   if group:
     groups.append(group)
@@ -371,9 +378,9 @@ def writestudentrow(out, row, fname, lno, group):
   elif is_504:
     groups.append('504')
 
-  if schoolid == '999999':
+  if allGraduates or schoolid == '999999':
     schoolid = '104'
-    grade_level = 9
+    grade_level = '9'
     groups.append('Graduates')
 
   if schoolid == '103' or schoolid == '104':
@@ -382,14 +389,14 @@ def writestudentrow(out, row, fname, lno, group):
       groups.append('New Students')
 
     if preRegGroups and (allPreRegs or (enroll_status < 0)):
-      if reg_grade_level in ['5','6','7','8']:
+      if grade_level in ['5','6','7','8']:
         schoolid = '104'
         groups.append('Pre-Registered 5-8')
       else:
         schoolid = '103'
-        if reg_grade_level == 'TK':
+        if grade_level == 'TK':
           groups.append('Pre-Registered TK')
-        elif reg_grade_level == 'K':
+        elif grade_level == 'RK':
           groups.append('Pre-Registered K')
         else:
           groups.append('Pre-Registered 1-4')
@@ -626,15 +633,15 @@ def process_file(contactType, uploadFile, outputFile):
 def main():
   if allPreRegs:
     # convert pre-reg students
-    create_csv_file('prereg-1617.txt', 'preregs.csv', studentNoRefreshHeaders, writestudentrow, None)
-    process_file('Other', 'preregs.csv', 'preregs_output.txt')
+    create_csv_file('preregs-1718.txt', 'preregs-1718.csv', studentNoRefreshHeaders, writestudentrow, None)
+    # process_file('Other', 'preregs-1718.csv', 'preregs-1718_output.txt')
 
-  if allGraduates:
+  elif allGraduates:
     # Convert graduating students
-    create_csv_file('graduated-2016.txt', 'graduated-2016.csv', studentNoRefreshHeaders, writestudentrow, 'Graduated 2016')
-    process_file('Other', 'graduated-2016.csv', 'graduated-2016_output.txt')
+    create_csv_file('graduated-2017.txt', 'graduated-2017.csv', studentNoRefreshHeaders, writestudentrow, 'Graduated 2017')
+    # process_file('Other', 'graduated-2017.csv', 'graduated-2017_output.txt')
 
-  if not allPreRegs and not allGraduates:
+  else:
     # convert powerschool autosend files to BBC csv format
     create_csv_file('ps-staff.txt', 'staff.csv', staffHeaders, writestaffrow, None)
     create_csv_file('ps-students.txt', 'students.csv', studentHeaders, writestudentrow, None)
